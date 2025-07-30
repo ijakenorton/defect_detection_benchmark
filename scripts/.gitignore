@@ -1,0 +1,4 @@
+*_out/
+old/
+*.md
+train.log
