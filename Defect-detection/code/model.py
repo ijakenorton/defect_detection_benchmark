@@ -122,21 +122,43 @@ class DefectModel(nn.Module):
     def get_t5_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
         
-        # outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
-        #                        labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
-        
         outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask, output_hidden_states=True)
-        
-        # hidden_states = outputs['decoder_hidden_states'][-1]
-        
         hidden_states = outputs.last_hidden_state
         
+        # Handle EOS tokens more robustly
         eos_mask = source_ids.eq(self.config.eos_token_id)
-
-        if len(torch.unique(eos_mask.sum(1))) > 1:
-            raise ValueError("All examples must have the same number of <eos> tokens.")
-        vec = hidden_states[eos_mask, :].view(hidden_states.size(0), -1,
-                                              hidden_states.size(-1))[:, -1, :]
+        
+        # Check if we have any EOS tokens at all
+        if eos_mask.sum() == 0:
+            # No EOS tokens found - use the last non-padding token for each sequence
+            # Get the length of each sequence (number of non-padding tokens)
+            seq_lengths = attention_mask.sum(dim=1) - 1  # -1 because we want 0-indexed
+            batch_size = source_ids.size(0)
+            
+            # Create indices for gathering
+            batch_indices = torch.arange(batch_size, device=source_ids.device)
+            vec = hidden_states[batch_indices, seq_lengths, :]
+            
+        else:
+            # We have EOS tokens - handle the case where different sequences have different numbers
+            batch_size, seq_len = source_ids.shape
+            vec_list = []
+            
+            for i in range(batch_size):
+                # Get EOS positions for this sequence
+                eos_positions = torch.where(eos_mask[i])[0]
+                
+                if len(eos_positions) > 0:
+                    # Use the last EOS token's representation
+                    last_eos_pos = eos_positions[-1]
+                    vec_list.append(hidden_states[i, last_eos_pos, :])
+                else:
+                    # No EOS in this sequence - use last non-padding token
+                    seq_length = attention_mask[i].sum() - 1
+                    vec_list.append(hidden_states[i, seq_length, :])
+            
+            vec = torch.stack(vec_list)
+        
         return vec
 
     def get_bart_vec(self, source_ids):
@@ -168,7 +190,7 @@ class DefectModel(nn.Module):
             vec = self.get_roberta_vec(source_ids)
 
         logits = self.classifier(vec)
-        prob = nn.functional.softmax(logits)
+        prob = nn.functional.softmax(logits, dim=-1)
 
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
