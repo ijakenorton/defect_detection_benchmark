@@ -32,5 +32,9 @@ python ../Defect-detection/code/run.py \
     --pos_weight $pos_weight \
     --evaluate_during_training \
     --dropout_probability 0.2 \
-    --seed 123456  2>&1 | tee train.log
+    --seed 123456  \
+    --use_wandb \
+    --wandb_project "vulnerability-benchmark" \
+    --wandb_run_name "${model_type}_${dir}_pos${pos_weight}_${out_suffix}" \
+    2>&1 | tee train.log
 

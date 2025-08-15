@@ -50,6 +50,7 @@ except:
 from tqdm import tqdm, trange
 import multiprocessing
 from model import Model
+import wandb
 
 cpu_cont = multiprocessing.cpu_count()
 from transformers import (
@@ -76,6 +77,7 @@ from transformers import (
     T5Config,
     T5EncoderModel, 
     T5Tokenizer,
+    T5ForConditionalGeneration,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,7 +93,9 @@ MODEL_CLASSES = {
         DistilBertTokenizer,
     ),
     "codet5": (T5Config, T5EncoderModel, RobertaTokenizer),
-    "natgen": (T5Config, T5EncoderModel, RobertaTokenizer),
+    "codet5_full": (T5Config, T5ForConditionalGeneration, RobertaTokenizer),
+    #"natgen": (T5Config, T5EncoderModel, RobertaTokenizer),
+    "natgen": (T5Config, T5ForConditionalGeneration, RobertaTokenizer),
 }
 
 
@@ -270,6 +274,7 @@ def train(args, train_dataset, model, tokenizer):
     early_stopping_counter = 0
     best_loss = None
 
+    global_wandb_step = 0 
 
     for idx in range(args.start_epoch, int(args.num_train_epochs)):
         bar = tqdm(train_dataloader, total=len(train_dataloader))
@@ -305,10 +310,21 @@ def train(args, train_dataset, model, tokenizer):
             avg_loss = round(train_loss / tr_num, 5)
             bar.set_description("epoch {} loss {}".format(idx, avg_loss))
             
-            # Add logging every 100 steps
+            # Log to wandb every 50 steps
+            if args.use_wandb and args.local_rank in [-1, 0] and step % 50 == 0:
+                current_lr = optimizer.param_groups[0]['lr']
+                wandb.log({
+                    "train/loss": avg_loss,
+                    "train/learning_rate": current_lr,
+                    "train/epoch": idx,
+                    "train/step": step,
+                    "train/global_step": global_wandb_step
+                }, step=global_wandb_step)
+            
+            # Add logging every 100 steps (existing code)
             if step % 100 == 0:
                 current_lr = optimizer.param_groups[0]['lr']
-                # Log to CSV
+                # Log to CSV (existing)
                 with open(training_log_file, "a") as f:
                     f.write(f"{idx},{step},{avg_loss:.6f},,,,{current_lr:.8f}\n")
                 logger.info(f"Epoch {idx}, Step {step}/{len(train_dataloader)}: "
@@ -320,6 +336,7 @@ def train(args, train_dataset, model, tokenizer):
                 optimizer.zero_grad()
                 scheduler.step()
                 global_step += 1
+                global_wandb_step += 1
                 
                 # Calculate average loss for logging
                 avg_loss = round(
@@ -337,14 +354,25 @@ def train(args, train_dataset, model, tokenizer):
                     ):
                         results = evaluate(args, model, tokenizer, eval_when_training=True)
 
-                        # Log evaluation results
+                        # Log evaluation results to wandb
+                        if args.use_wandb:
+                            wandb_metrics = {
+                                f"eval/{key}": value for key, value in results.items()
+                            }
+                            wandb_metrics.update({
+                                "eval/epoch": idx,
+                                "eval/global_step": global_step,
+                            })
+                            wandb.log(wandb_metrics, step=global_wandb_step)
+
+                        # Log evaluation results (existing code)
                         eval_acc = results.get("eval_acc", 0)
                         eval_f1 = results.get("eval_f1", 0)
                         eval_precision = results.get("eval_precision", 0)
                         eval_recall = results.get("eval_recall", 0)
                         current_lr = optimizer.param_groups[0]['lr']
 
-                        # Log to CSV
+                        # Log to CSV (existing)
                         with open(training_log_file, "a") as f:
                             f.write(f"{idx},{step},{avg_loss:.6f},{eval_acc:.4f},"
                                    f"{eval_f1:.4f},{eval_precision:.4f},{eval_recall:.4f},{current_lr:.8f}\n")
@@ -355,6 +383,15 @@ def train(args, train_dataset, model, tokenizer):
                         # Save model checkpoint if best
                         if results["eval_acc"] > best_acc:
                             best_acc = results["eval_acc"]
+                            
+                            # Log best model to wandb
+                            if args.use_wandb:
+                                wandb.log({
+                                    "best/accuracy": best_acc,
+                                    "best/epoch": idx,
+                                    "best/global_step": global_step
+                                }, step=global_wandb_step)
+                            
                             logger.info("  " + "*" * 20)
                             logger.info("  Best acc:%s", round(best_acc, 4))
                             logger.info("  " + "*" * 20)
@@ -370,9 +407,16 @@ def train(args, train_dataset, model, tokenizer):
                             torch.save(model_to_save.state_dict(), output_dir)
                             logger.info("Saving model checkpoint to %s", output_dir)
 
-        # END OF STEP LOOP - Now handle end of epoch stuff
+        # END OF STEP LOOP - Log epoch metrics to wandb
+        if args.use_wandb and args.local_rank in [-1, 0]:
+            wandb.log({
+                "epoch/avg_loss": avg_loss,
+                "epoch/examples_processed": tr_num * args.train_batch_size,
+                "epoch/epoch": idx,
+                "epoch/best_acc": best_acc
+            }, step=global_wandb_step)
         
-        # Calculate average loss for the epoch
+        # Calculate average loss for the epoch (existing code)
         avg_loss = train_loss / tr_num
 
         # Add epoch metrics logging
@@ -645,83 +689,27 @@ def test(args, model, tokenizer):
     logger.info("***** Final Test Results *****")
     for key, value in result.items():
         logger.info(f"  {key} = {value}")
+
+    if args.use_wandb and args.local_rank in [-1, 0]:
+        wandb.log({
+            "test/accuracy": result["test_acc"],
+            "test/precision": result["precision"],
+            "test/recall": result["recall"],
+            "test/f1": result["f1"],
+            "test/optimal_threshold": result["optimal_threshold"],
+            "test/improvement": result["improvement"]
+        })
+        
+        # Log threshold analysis table
+        #threshold_results = []  
+        wandb.log({
+            "test/threshold_analysis": wandb.Table(
+                columns=["threshold", "accuracy", "precision", "recall", "f1"],
+                data=[[t["threshold"], t["accuracy"], t["precision"], t["recall"], t["f1"]] 
+                      for t in threshold_results[:20]]  # Log top 20 thresholds
+            )
+        })
     
-    return result
-
-def _test(args, model, tokenizer):
-    # Loop to handle MNLI double evaluation (matched, mis-matched)
-    eval_dataset = TextDataset(tokenizer, args, args.test_data_file)
-
-    args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
-    # Note that DistributedSampler samples randomly
-    eval_sampler = (
-        SequentialSampler(eval_dataset)
-        if args.local_rank == -1
-        else DistributedSampler(eval_dataset)
-    )
-    eval_dataloader = DataLoader(
-        eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size
-    )
-
-    # multi-gpu evaluate
-    if args.n_gpu > 1:
-        model = torch.nn.DataParallel(model)
-
-    # Eval!
-    logger.info("***** Running Test *****")
-    logger.info("  Num examples = %d", len(eval_dataset))
-    logger.info("  Batch size = %d", args.eval_batch_size)
-    eval_loss = 0.0
-    nb_eval_steps = 0
-    model.eval()
-    logits = []
-    labels = []
-    for batch in tqdm(eval_dataloader, total=len(eval_dataloader)):
-        inputs = batch[0].to(args.device)
-        label = batch[1].to(args.device)
-        with torch.no_grad():
-            logit = model(inputs)
-            logits.append(logit.cpu().numpy())
-            labels.append(label.cpu().numpy())
-
-    logits = np.concatenate(logits, 0)
-    labels = np.concatenate(labels, 0)
-    preds = logits[:, 0] > 0.5
-    with open(os.path.join(args.output_dir, "predictions.txt"), "w") as f:
-        for example, pred in zip(eval_dataset.examples, preds):
-            if pred:
-                f.write(example.idx + "\t1\n")
-            else:
-                f.write(example.idx + "\t0\n")
-    # Calculate metrics (add this before the file writing)
-    true_vul = 0  # predicted vulnerable and actually vulnerable
-    true_non = 0  # predicted non-vulnerable and actually non-vulnerable  
-    false_vul = 0  # predicted vulnerable but actually non-vulnerable
-    false_non = 0  # predicted non-vulnerable but actually vulnerable
-
-    for i in range(len(labels)):
-        if labels[i] == 1 and preds[i] == 1:
-            true_vul += 1
-        elif labels[i] == 0 and preds[i] == 1:
-            false_vul += 1
-        elif labels[i] == 1 and preds[i] == 0:
-            false_non += 1
-        else:
-            true_non += 1
-
-    precision = true_vul / (true_vul + false_vul) if (true_vul + false_vul) > 0 else 0
-    recall = true_vul / (true_vul + false_non) if (true_vul + false_non) > 0 else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-    test_acc = np.mean(labels == preds)
-
-    # Return results
-    result = {
-        "test_acc": round(test_acc, 4),
-        "precision": round(precision, 4),
-        "recall": round(recall, 4),
-        "f1": round(f1, 4),
-    }
-    print(result)
     return result
 
 
@@ -969,6 +957,24 @@ def main():
         "--pos_weight", default=1.0, type=float, help="Weight for positive class to prioritize recall"
     )
 
+    #wandb args
+    parser.add_argument(
+        "--wandb_project", 
+        default="vulnerability-detection-benchmark", 
+        type=str, 
+        help="Wandb project name"
+    )
+    parser.add_argument(
+        "--wandb_run_name", 
+        default=None, 
+        type=str, 
+        help="Wandb run name (auto-generated if None)"
+    )
+    parser.add_argument(
+        "--use_wandb", 
+        action="store_true", 
+        help="Whether to use wandb logging"
+    )
 
     args = parser.parse_args()
     print(args)
@@ -1073,6 +1079,10 @@ def main():
         # Use CodeT5 model
         from model import CodeT5Model  
         model = CodeT5Model(model, config, tokenizer, args)
+    elif args.model_type == "codet5_full":
+        # Use CodeT5 model
+        from model import CodeT5FullModel  
+        model = CodeT5FullModel(model, config, tokenizer, args)
     elif args.model_type == "natgen":
         # Use Natgen model
         from model import DefectModel  
@@ -1084,6 +1094,35 @@ def main():
         torch.distributed.barrier()  # End of barrier to make sure only the first process in distributed training download model & vocab
 
     logger.info("Training/evaluation parameters %s", args)
+
+    if args.use_wandb and args.local_rank in [-1, 0]:
+        # Auto-generate run name if not provided
+        if args.wandb_run_name is None:
+            args.wandb_run_name = f"{args.model_type}_{args.train_data_file.split('/')[-2]}_{args.pos_weight}"
+        
+        wandb.init(
+            project=args.wandb_project,
+            name=args.wandb_run_name,
+            config={
+                "model_type": args.model_type,
+                "model_name": args.model_name_or_path,
+                "dataset": args.train_data_file.split('/')[-2] if args.train_data_file else "unknown",
+                "learning_rate": args.learning_rate,
+                "batch_size": args.train_batch_size,
+                "epochs": args.epoch,
+                "pos_weight": args.pos_weight,
+                "dropout_probability": args.dropout_probability,
+                "block_size": args.block_size,
+                "seed": args.seed,
+                "gradient_accumulation_steps": args.gradient_accumulation_steps,
+                "max_grad_norm": args.max_grad_norm,
+                "weight_decay": args.weight_decay,
+                "warmup_steps": args.warmup_steps,
+            },
+            tags=[args.model_type, args.train_data_file.split('/')[-2] if args.train_data_file else "unknown"]
+        )
+        
+        wandb.watch(model, log="all", log_freq=100)
 
     # Training
     if args.do_train:
@@ -1115,6 +1154,9 @@ def main():
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
         test(args, model, tokenizer)
+
+    if args.use_wandb and args.local_rank in [-1, 0]:
+        wandb.finish()
 
     return results
 
