@@ -20,6 +20,7 @@ using a masked language modeling (MLM) loss.
 """
 
 from __future__ import absolute_import, division, print_function
+from sklearn.model_selection import train_test_split
 
 import argparse
 import glob
@@ -29,6 +30,7 @@ import pickle
 import random
 import re
 import shutil
+from datetime import datetime
 
 import numpy as np
 import torch
@@ -164,9 +166,13 @@ def set_seed(seed=42):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
-
+no_train = True
 def train(args, train_dataset, model, tokenizer):
     """Train the model"""
+    global no_train
+    if no_train:
+        print("ensuring no training")
+        exit(1)
     args.train_batch_size = args.per_gpu_train_batch_size * max(1, args.n_gpu)
     train_sampler = (
         RandomSampler(train_dataset)
@@ -543,6 +549,117 @@ def evaluate(args, model, tokenizer, eval_when_training=False):
         logger.info(f"  Predictions >0.5: {preds_05.sum()}/{len(preds_05)}")
     
     return result
+def _test_debug(args, model, tokenizer):
+    # Load test dataset
+    eval_dataset = TextDataset(tokenizer, args, args.test_data_file)
+    args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
+    
+    print(f"DEBUG: Test dataset length: {len(eval_dataset)}")
+    print(f"DEBUG: Test file: {args.test_data_file}")
+    print(f"DEBUG: Model type: {args.model_type}")
+    print(f"DEBUG: Model class: {type(model)}")
+    
+    if len(eval_dataset) == 0:
+        print("ERROR: Test dataset is empty!")
+        return {"test_acc": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0}
+    
+    eval_sampler = (
+        SequentialSampler(eval_dataset)
+        if args.local_rank == -1
+        else DistributedSampler(eval_dataset)
+    )
+    eval_dataloader = DataLoader(
+        eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size
+    )
+
+    print(f"DEBUG: Dataloader length: {len(eval_dataloader)}")
+
+    if args.n_gpu > 1:
+        model = torch.nn.DataParallel(model)
+
+    logger.info("***** Running Test *****")
+    logger.info("  Num examples = %d", len(eval_dataset))
+    logger.info("  Batch size = %d", args.eval_batch_size)
+    
+    model.eval()
+    logits = []
+    labels = []
+    failed_batches = 0
+    successful_batches = 0
+    
+    for batch_idx, batch in enumerate(tqdm(eval_dataloader, total=len(eval_dataloader))):
+        try:
+            inputs = batch[0].to(args.device)
+            label = batch[1].to(args.device)
+            
+            print(f"DEBUG Batch {batch_idx}: input shape {inputs.shape}, label shape {label.shape}")
+            
+            with torch.no_grad():
+                # Test the forward pass
+                try:
+                    logit = model(inputs)
+                    print(f"DEBUG Batch {batch_idx}: Forward pass successful")
+                    print(f"DEBUG Batch {batch_idx}: Output type {type(logit)}")
+                    
+                    if isinstance(logit, tuple):
+                        print(f"DEBUG Batch {batch_idx}: Tuple output, taking first element")
+                        logit = logit[0]
+                    
+                    print(f"DEBUG Batch {batch_idx}: Final logit shape {logit.shape}")
+                    
+                    # Convert to numpy
+                    logit_np = logit.cpu().numpy()
+                    label_np = label.cpu().numpy()
+                    
+                    print(f"DEBUG Batch {batch_idx}: Numpy conversion successful")
+                    print(f"DEBUG Batch {batch_idx}: Logit numpy shape {logit_np.shape}")
+                    print(f"DEBUG Batch {batch_idx}: Label numpy shape {label_np.shape}")
+                    
+                    logits.append(logit_np)
+                    labels.append(label_np)
+                    successful_batches += 1
+                    
+                except Exception as forward_error:
+                    print(f"ERROR Batch {batch_idx}: Forward pass failed: {forward_error}")
+                    print(f"ERROR Batch {batch_idx}: Error type: {type(forward_error)}")
+                    import traceback
+                    traceback.print_exc()
+                    failed_batches += 1
+                    continue
+                    
+        except Exception as batch_error:
+            print(f"ERROR Batch {batch_idx}: Batch processing failed: {batch_error}")
+            import traceback
+            traceback.print_exc()
+            failed_batches += 1
+            continue
+        
+        # Stop after a few batches for debugging
+        if batch_idx >= 5:
+            print(f"DEBUG: Stopping after {batch_idx + 1} batches for debugging")
+            break
+
+    print(f"DEBUG: Processing complete")
+    print(f"DEBUG: Successful batches: {successful_batches}")
+    print(f"DEBUG: Failed batches: {failed_batches}")
+    print(f"DEBUG: Total logits collected: {len(logits)}")
+    print(f"DEBUG: Total labels collected: {len(labels)}")
+
+    if len(logits) == 0:
+        print("ERROR: No logits collected - all batches failed")
+        return {"test_acc": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0}
+
+    # Try concatenation with debug info
+    
+    # Print logits statistics for analysis
+    logger.info("Logits statistics:")
+    logger.info(f"  Shape: {logits.shape}")
+    logger.info(f"  Min: {logits.min():.4f}, Max: {logits.max():.4f}")
+    logger.info(f"  Mean: {logits.mean():.4f}, Std: {logits.std():.4f}")
+    logger.info(f"  Label distribution: Positive={(labels==1).sum()}, Negative={(labels==0).sum()}")
+    
+    # For debugging, return early
+    return {"test_acc": 0.5, "precision": 0.5, "recall": 0.5, "f1": 0.5, "debug": "stopped_early"}
 
 def test(args, model, tokenizer):
     # Load test dataset
@@ -712,18 +829,199 @@ def test(args, model, tokenizer):
     
     return result
 
+def copy_split_metadata_to_output(args):
+    """
+    Copy data split metadata to the output directory for this experiment
+    """
+    if not args.one_data_file:
+        return  # Only relevant when using auto-splitting
+    
+    # Find the metadata file
+    input_dir = os.path.dirname(args.one_data_file)
+    base_name = os.path.basename(args.one_data_file).replace('.jsonl', '')
+    source_metadata = os.path.join(input_dir, f"{base_name}_split_metadata_seed{args.seed}.json")
+    
+    if not os.path.exists(source_metadata):
+        print(f"Warning: Could not find split metadata at {source_metadata}")
+        return
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(args.output_dir, exist_ok=True)
+    
+    # Copy metadata to output directory
+    dest_metadata = os.path.join(args.output_dir, "data_split_info.json")
+    
+    # Load, enhance, and save the metadata
+    with open(source_metadata, 'r') as f:
+        metadata = json.load(f)
+    
+    # Add experiment-specific information
+    metadata.update({
+        "experiment_output_dir": args.output_dir,
+        "model_type": args.model_type,
+        "model_name": args.model_name_or_path,
+        "copied_at": datetime.now().isoformat(),
+        "training_args": {
+            "learning_rate": args.learning_rate,
+            "batch_size": args.train_batch_size,
+            "epochs": args.epoch,
+            "pos_weight": args.pos_weight,
+            "dropout_probability": args.dropout_probability,
+            "block_size": args.block_size,
+        }
+    })
+    
+    with open(dest_metadata, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    
+    print(f"Copied split metadata to: {dest_metadata}")
+    
+    # Also create a simple summary file
+    summary_file = os.path.join(args.output_dir, "experiment_summary.txt")
+    with open(summary_file, 'w') as f:
+        f.write(f"Experiment Summary\n")
+        f.write(f"==================\n\n")
+        f.write(f"Dataset: {base_name}\n")
+        f.write(f"Model: {args.model_type} ({args.model_name_or_path})\n")
+        f.write(f"Seed: {args.seed}\n")
+        f.write(f"Split: {metadata['sizes']['train']}/{metadata['sizes']['val']}/{metadata['sizes']['test']} (train/val/test)\n")
+        f.write(f"Total examples: {metadata['total_examples']}\n")
+        f.write(f"Ratios: {metadata['ratios']['train']:.1%}/{metadata['ratios']['val']:.1%}/{metadata['ratios']['test']:.1%}\n\n")
+        f.write(f"Training Parameters:\n")
+        f.write(f"  Learning rate: {args.learning_rate}\n")
+        f.write(f"  Batch size: {args.train_batch_size}\n")
+        f.write(f"  Epochs: {args.epoch}\n")
+        f.write(f"  Pos weight: {args.pos_weight}\n")
+        f.write(f"  Dropout: {args.dropout_probability}\n")
+        f.write(f"  Block size: {args.block_size}\n\n")
+        f.write(f"Data Files:\n")
+        f.write(f"  Original: {metadata['original_file']}\n")
+        f.write(f"  Train: {args.train_data_file}\n")
+        f.write(f"  Val: {args.eval_data_file}\n")
+        f.write(f"  Test: {args.test_data_file}\n")
+    
+    print(f"Created experiment summary: {summary_file}")
+
+def split_data_by_seed(input_file, seed, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
+    """
+    Split a single data file into train/val/test based on seed
+    Saves splits in the same directory as the input file
+    
+    Args:
+        input_file: Path to the input .jsonl file
+        seed: Random seed for reproducible splits
+        train_ratio: Proportion for training (default 0.8)
+        val_ratio: Proportion for validation (default 0.1)  
+        test_ratio: Proportion for testing (default 0.1)
+    
+    Returns:
+        tuple: (train_file, val_file, test_file) paths
+    """
+    # Use the same directory as input file
+    input_dir = os.path.dirname(input_file)
+    base_name = os.path.basename(input_file).replace('.jsonl', '')
+    
+    # Check if splits already exist
+    train_file = os.path.join(input_dir, f"{base_name}_train_seed{seed}.jsonl")
+    val_file = os.path.join(input_dir, f"{base_name}_val_seed{seed}.jsonl")
+    test_file = os.path.join(input_dir, f"{base_name}_test_seed{seed}.jsonl")
+    
+    # If splits already exist, just return the paths
+    if all(os.path.exists(f) for f in [train_file, val_file, test_file]):
+        print(f"Using existing splits for seed {seed}:")
+        print(f"  Train: {train_file}")
+        print(f"  Val: {val_file}")
+        print(f"  Test: {test_file}")
+        return train_file, val_file, test_file
+    
+    print(f"Creating new splits for seed {seed}...")
+    
+    # Load and split data
+    data = []
+    with open(input_file, 'r') as f:
+        for line in f:
+            data.append(json.loads(line.strip()))
+    
+    print(f"Loaded {len(data)} examples from {input_file}")
+    
+    # Set seed for reproducible splits
+    random.seed(seed)
+    
+    # First split: train vs (val + test)
+    train_data, temp_data = train_test_split(
+        data, 
+        train_size=train_ratio, 
+        random_state=seed,
+        stratify=[item['target'] for item in data] if 'target' in data[0] else None
+    )
+    
+    # Second split: val vs test
+    val_size = val_ratio / (val_ratio + test_ratio)
+    val_data, test_data = train_test_split(
+        temp_data,
+        train_size=val_size,
+        random_state=seed,
+        stratify=[item['target'] for item in temp_data] if 'target' in temp_data[0] else None
+    )
+    
+    # Save splits
+    def save_jsonl(data, filename):
+        with open(filename, 'w') as f:
+            for item in data:
+                f.write(json.dumps(item) + '\n')
+    
+    save_jsonl(train_data, train_file)
+    save_jsonl(val_data, val_file)
+    save_jsonl(test_data, test_file)
+    
+    print(f"Split complete:")
+    print(f"  Train: {len(train_data)} examples -> {train_file}")
+    print(f"  Val:   {len(val_data)} examples -> {val_file}")
+    print(f"  Test:  {len(test_data)} examples -> {test_file}")
+    
+    # Save split metadata in data directory (for reuse)
+    metadata = {
+        "original_file": input_file,
+        "seed": seed,
+        "ratios": {"train": train_ratio, "val": val_ratio, "test": test_ratio},
+        "sizes": {"train": len(train_data), "val": len(val_data), "test": len(test_data)},
+        "total_examples": len(data),
+        "split_files": {
+            "train": train_file,
+            "val": val_file, 
+            "test": test_file
+        },
+        "created_at": datetime.now().isoformat()
+    }
+    
+    metadata_file = os.path.join(input_dir, f"{base_name}_split_metadata_seed{seed}.json")
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    
+    print(f"Saved metadata: {metadata_file}")
+    
+    return train_file, val_file, test_file
+
 
 def main():
     parser = argparse.ArgumentParser()
+    data_group = parser.add_mutually_exclusive_group(required=True)
 
     ## Required parameters
-    parser.add_argument(
+    data_group.add_argument(
         "--train_data_file",
         default=None,
         type=str,
-        required=True,
         help="The input training data file (a text file).",
     )
+
+    data_group.add_argument(
+        "--one_data_file",
+        default=None,
+        type=str,
+        help="Automate splitting of data based on seed",
+    )
+
     parser.add_argument(
         "--output_dir",
         default=None,
@@ -1092,6 +1390,16 @@ def main():
 
     if args.local_rank == 0:
         torch.distributed.barrier()  # End of barrier to make sure only the first process in distributed training download model & vocab
+
+    if args.one_data_file:
+        print(f"Splitting data from: {args.one_data_file}")
+        train_file, val_file, test_file = split_data_by_seed(args.one_data_file, args.seed)
+        
+        args.train_data_file = train_file
+        args.eval_data_file = val_file  
+        args.test_data_file = test_file
+
+        copy_split_metadata_to_output(args)
 
     logger.info("Training/evaluation parameters %s", args)
 

@@ -11,19 +11,16 @@ model_type=${model_type:-"roberta"}
 out_suffix=${out_suffix:-""}
 seed=${seed:-"123456"}
 
-conda activate ensemble
+##conda activate ensemble
 
 python ../Defect-detection/code/run.py \
     --output_dir=../models/${model_name##*/}/${dir}_${out_suffix}_seed${seed} \
     --model_type=${model_type} \
     --tokenizer_name=${tokenizer_name} \
     --model_name_or_path=${model_name} \
-    --do_train \
     --do_eval \
     --do_test \
-    --train_data_file=../data/$dir/${dir}_train.jsonl \
-    --eval_data_file=../data/$dir/${dir}_val.jsonl   \
-    --test_data_file=../data/$dir/${dir}_test.jsonl \
+    --one_data_file=../data/$dir/${dir}_full_dataset.jsonl \
     --epoch $epoch \
     --block_size 400 \
     --train_batch_size 16 \

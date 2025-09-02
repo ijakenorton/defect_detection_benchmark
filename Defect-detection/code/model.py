@@ -108,6 +108,98 @@ class CodeT5Model(nn.Module):
             return prob
 
 class CodeT5FullModel(nn.Module):
+    """CodeT5 with full encoder-decoder - following NatGen pattern"""
+    def __init__(self, encoder, config, tokenizer, args):
+        super(CodeT5FullModel, self).__init__()
+        self.encoder = encoder  # T5ForConditionalGeneration
+        self.config = config
+        self.tokenizer = tokenizer
+        self.args = args
+        
+        self.dropout = nn.Dropout(getattr(args, 'dropout_probability', 0.1))
+        # Use same classifier structure as NatGen: 2 classes, then extract binary
+        self.classifier = nn.Linear(config.hidden_size, 2)
+        
+    def get_t5_vec(self, source_ids):
+        attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
+
+        # Use the full T5 model with decoder - SAME as NatGen
+        outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
+                               labels=source_ids, decoder_attention_mask=attention_mask,
+                               output_hidden_states=True)
+
+        # Now we can access decoder_hidden_states - SAME as NatGen
+        hidden_states = outputs['decoder_hidden_states'][-1]
+        eos_mask = source_ids.eq(self.config.eos_token_id)
+
+        # Handle varying EOS tokens robustly - SAME as NatGen
+        if eos_mask.sum() == 0:
+            # No EOS tokens - use last non-padding token
+            seq_lengths = attention_mask.sum(dim=1) - 1
+            batch_size = source_ids.size(0)
+            batch_indices = torch.arange(batch_size, device=source_ids.device)
+            vec = hidden_states[batch_indices, seq_lengths, :]
+        else:
+            # Handle varying EOS tokens per sequence
+            batch_size, seq_len = source_ids.shape
+            vec_list = []
+
+            for i in range(batch_size):
+                eos_positions = torch.where(eos_mask[i])[0]
+
+                if len(eos_positions) > 0:
+                    last_eos_pos = eos_positions[-1]
+                    vec_list.append(hidden_states[i, last_eos_pos, :])
+                else:
+                    seq_length = attention_mask[i].sum() - 1
+                    vec_list.append(hidden_states[i, seq_length, :])
+
+            vec = torch.stack(vec_list)
+
+        return vec
+        
+    def forward(self, input_ids=None, labels=None):
+        # Reshape input like NatGen does
+        input_ids = input_ids.view(-1, self.args.max_source_length)
+        
+        # Get T5 representation - SAME method for training and inference
+        vec = self.get_t5_vec(input_ids)
+        vec = self.dropout(vec)
+        
+        # Classify - same as NatGen
+        logits = self.classifier(vec)
+        
+        if labels is not None:
+            # Training mode - EXACT same as NatGen
+            labels = labels.float()
+
+            # Extract vulnerability logit (class 1 = vulnerable) - SAME as NatGen
+            if logits.shape[1] == 2:
+                binary_logits = logits[:, 1]
+            else:
+                binary_logits = logits.squeeze()
+
+            # Use proper weighted BCE loss like other models - SAME as NatGen
+            pos_weight = torch.tensor(getattr(self.args, 'pos_weight', 1.0)).to(labels.device)
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                binary_logits,
+                labels,
+                pos_weight=pos_weight
+            )
+
+            # Return probabilities in same format as other models - SAME as NatGen
+            prob = torch.sigmoid(binary_logits.unsqueeze(1))
+            return loss, prob
+        else:
+            # For inference - EXACT same as NatGen
+            if logits.shape[1] == 2:
+                binary_logits = logits[:, 1]
+            else:
+                binary_logits = logits.squeeze()
+            prob = torch.sigmoid(binary_logits.unsqueeze(1))
+            return prob
+
+class _CodeT5FullModel(nn.Module):
     """CodeT5 with full encoder-decoder + EOS token extraction"""
     def __init__(self, encoder, config, tokenizer, args):
         super(CodeT5FullModel, self).__init__()

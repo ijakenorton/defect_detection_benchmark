@@ -1,10 +1,10 @@
 # Slurm batch recipe for graphcodebert
 export model_name=microsoft/graphcodebert-base
 export tokenizer_name=microsoft/graphcodebert-base
+export model_type=roberta
 export pos_weight=1.0
 export out_suffix=default
 export epoch=10
-export model_type=roberta
 
 echo "Submitted jobs with model_name: $model_name model_type: $model_type pos: $pos_weight out_suffix $out_suffix epoch: $epoch tokenizer_name: $tokenizer_name"
 
