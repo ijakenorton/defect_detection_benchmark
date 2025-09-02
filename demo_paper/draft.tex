@@ -19,17 +19,13 @@
 
 \title{VulnBench: A Comprehensive Benchmark for Transformer-Based Vulnerability Detection}
 
-% \author{
-% Jake Norton\\
-% University of Otago\\
-% norja159@student.otago.ac.nz
-% }
-
+%other cite option
 % \author{
 % Jake Norton, David Eyers, Veronica Liesaputra\\
 % University of Otago\\
 % \{norja159, david.eyers, veronica.liesaputra\}@otago.ac.nz
 % }
+
 \author{
 Jake Norton\\
 University of Otago\\
@@ -48,18 +44,9 @@ veronica.liesaputra@otago.ac.nz
 
 \maketitle
 
-% \begin{abstract}
-% 	Repoducibility and benchmarking needs to be made easy, or people won't do it. In the vulnerability detection space there are good examples of benchmarking of the state-of-the-art models across different datasets. However, these are usually either incomplete, relying on their own implementations of the models as the original authors did not specify them and/or based on data that has been aggregated in subtly different ways. The other issue is the amount of duplicate work that needs to happen for proper comparison. We present a simple but extensible framework for benchmarking models and datasets in a consistent format. The benchmark implements setup of the data, function name anonymisation, training, evaluation and results aggregation. The framework has been use to evaluate CodeBERT, GraphCodeBERT, CodeT5 (encoder-only and full), and NatGen reveals substantial performance variations across datasets and highlights critical evaluation methodology issues.
-% \end{abstract}
-
-% \begin{abstract}
-% 	Reproducible benchmarking in vulnerability detection remains challenging due to inconsistent implementations, varying data preprocessing, and substantial duplicate effort required for fair model comparison. While prior work has evaluated state-of-the-art models across different datasets, these studies often rely on incomplete implementations or subtly different data handling, hindering reproducibility and collaborative progress. We present VulnBench, an extensible open-source framework that standardizes the entire evaluation pipeline from data preprocessing and function anonymization to training, evaluation, and statistical aggregation. Our systematic evaluation of CodeBERT, GraphCodeBERT, CodeT5 (encoder-only and full), and NatGen across nine datasets provides a baseline for performance across varied data with varied models. By providing a unified framework with consistent protocols, VulnBench enables reproducible research and reduces the barrier to comprehensive model comparison in vulnerability detection.
-% \end{abstract}
-
 \begin{abstract}
 	Reproducible benchmarking in vulnerability detection remains challenging due to inconsistent implementations, varying data preprocessing, and methodological flaws that compromise fair model comparison. Recent analysis reveals that 9 in 10 vulnerability detection studies use inappropriate evaluation approaches, with models achieving high scores through spurious correlations rather than actual vulnerability detection. We present VulnBench, an extensible open-source framework that standardizes evaluation methodology to enable fair comparison across models and datasets. Our systematic evaluation of CodeBERT, GraphCodeBERT, CodeT5 (encoder-only and full), and NatGen across nine datasets reveals that proper threshold optimization can improve F1-scores by up to 58\%, while exposing severe dataset quality variations ranging from 25\% to 82\% F1-score that question the validity of many existing comparisons. By providing rigorous evaluation protocols, VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts as well as reducing duplicate time spent on reproducing results.
 \end{abstract}
-
 
 
 \section{Introduction}
