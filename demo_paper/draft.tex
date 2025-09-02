@@ -78,24 +78,26 @@ Reproducible benchmarking in vulnerability detection remains challenging due to 
 
 VulnBench provides a comprehensive benchmarking platform addressing systematic evaluation challenges in vulnerability detection research. The framework implements four key architectural components:
 
-\textbf{Unified Model Interface:} Supporting diverse transformer architectures through consistent APIs. Researchers can easily add new models by implementing a standard interface, with automatic handling of architectural differences (encoder-only vs. encoder-decoder, different tokenization schemes, loss functions).
+\begin{itemize}
+	\item \textbf{Unified Model Interface:} Supporting diverse transformer architectures through consistent APIs. Researchers can easily add new models by implementing a standard interface, with automatic handling of architectural differences (encoder-only vs. encoder-decoder, different tokenization schemes, loss functions).
+	\item \textbf{Automated Data Pipeline:} Handles nine vulnerability datasets with standardized preprocessing. Features include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization, and configurable train/validation/test ratios. Custom datasets will require work to convert to the standard JSONL format, however, there are many script recipes to use as templates for this.
+	\item \textbf{Rigorous Evaluation Engine:} Implements threshold optimization, multi-seed statistical testing, and comprehensive metrics. Automatically generates performance reports with confidence intervals, statistical significance tests, and comparative analysis.
+	\item \textbf{Experiment Tracking:} Integrated Weights \& Biases support with standalone logging fallback. Provides real-time training monitoring, hyperparameter comparison, and automated results aggregation across multiple seeds.
 
-\textbf{Automated Data Pipeline:} Handles nine vulnerability datasets with standardized preprocessing. Features include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization, and configurable train/validation/test ratios. Custom datasets will require work to convert to the standard JSONL format, however, there are many script recipes to use as templates for this.
+\end{itemize}
+\section{Related Work}
 
-\textbf{Rigorous Evaluation Engine:} Implements threshold optimization, multi-seed statistical testing, and comprehensive metrics. Automatically generates performance reports with confidence intervals, statistical significance tests, and comparative analysis.
+\textbf{General Code Understanding Benchmarks.} CodeXGLUE represents the most comprehensive benchmarking effort for code intelligence, providing 14 datasets across 10 tasks including defect detection, with standardized evaluation protocols and baseline models. However, CodeXGLUE focuses broadly on code understanding rather than specifically addressing the methodological challenges in vulnerability detection evaluation.
 
-\textbf{Experiment Tracking:} Integrated Weights \& Biases support with standalone logging fallback. Provides real-time training monitoring, hyperparameter comparison, and automated results aggregation across multiple seeds.
+\textbf{Vulnerability-Specific Benchmarks.} Several frameworks target vulnerability detection specifically. The OWASP Benchmark provides a Java test suite for evaluating application security testing tools, focusing on exploitable vulnerabilities mapped to specific CWEs. CASTLE introduces a curated collection of 250 compilable C programs for evaluating static analyzers, formal verification tools, and LLMs, with balanced vulnerable/non-vulnerable distributions. VulnLLMEval specifically evaluates large language models on vulnerability detection and patching tasks using real-world CVE data.
 
-\section{Tool Capabilities and Usage}
+\textbf{Critical Evaluation Issues.} Recent work has identified fundamental problems with current evaluation approaches. Risse et al. demonstrate that 9 in 10 ML-based vulnerability detection papers use inappropriate problem formulations, with models achieving high scores through spurious correlations rather than actual vulnerability detection. Studies of popular datasets (BigVul, CVEFixes, DiverseVul) reveal significant data leakage issues and labeling problems that compromise evaluation validity.
 
-\textbf{Easy Model Integration:} Adding new models requires minimal code changes. The framework handles tokenization differences, loss function selection, and representation extraction automatically based on model type annotations.
+\textbf{Static Analysis Tool Benchmarking.} Traditional vulnerability detection tool evaluation has focused on static analysis tools. Web service vulnerability detection studies propose benchmarking approaches for comparing penetration testing tools, static analyzers, and anomaly detectors using metrics like precision, recall, and F-measure. Comprehensive evaluations of memory error detectors against benchmark datasets reveal varied accuracy across vulnerability categories and highlight the challenges of fair comparison.
 
-\textbf{Dataset Management:} Researchers can evaluate on all supported datasets with a single command, or easily add new datasets by following standardized formatting conventions. The system automatically handles class imbalance reporting and data quality assessment.
+\textbf{Dataset Quality and Standardization.} Systematic surveys reveal that 39.1\% of vulnerability detection studies use hybrid data sources combining benchmarks, repositories, and projects, while 37.6% rely on standardized benchmark datasets. However, many proposed benchmarking frameworks focus on specific neural network architectures rather than providing systematic evaluation methodology.
 
-\textbf{Reproducible Experiments:} All experiments are fully reproducible through seed control, automated environment logging, and standardized evaluation protocols. Results include statistical significance testing across multiple seeds.
-
-\textbf{Threshold Analysis:} Automatic threshold optimization reveals when models achieve high scores through suboptimal default thresholds rather than genuine performance improvements. The system generates threshold-performance curves and optimal operating point recommendations.
-
+\textbf{Distinguishing Characteristics of VulnBench.} Unlike existing work, VulnBench addresses the methodological evaluation crisis by providing: (1) standardized threshold optimization addressing severe class imbalances, (2) architecture-aware evaluation protocols handling transformer model differences, and (3) systematic dataset quality assessment revealing artifacts that compromise research validity. While frameworks like CodeXGLUE provide broad code understanding benchmarks and OWASP/CASTLE focus on specific tool evaluation, VulnBench uniquely combines rigorous evaluation methodology with comprehensive transformer model comparison across diverse vulnerability datasets.
 \section{Demonstration Results}
 
 
