@@ -19,6 +19,12 @@
 
 \title{VulnBench: A Comprehensive Benchmark for Transformer-Based Vulnerability Detection}
 
+\usepackage{xcolor}
+\newcommand{\note}[2][red]{\textcolor{#1}{#2}}
+\newcommand{\notedme}[1]{\note[blue]{[<Dave> #1]}}
+%\newenvironment{scaffold}{\color{red}}{}
+\newcommand{\change}[2][]{\textcolor{orange}{#2}}
+
 %other cite option
 % \author{
 % Jake Norton, David Eyers, Veronica Liesaputra\\
@@ -125,6 +131,8 @@ We demonstrate VulnBench's capabilities through systematic evaluation of five tr
 \section{Availability and Future Extensions}
 
 VulnBench is available as an open-source framework with comprehensive documentation and example configurations. The modular design enables easy extension with new models, datasets, and evaluation metrics. Future development includes support for additional transformer architectures, or other state-of-the-art models like LineVul or Vul\_Detection\_Gnn.
+
+\notedme{Your bibliography needs scanning for errors: BibTeX applies normalisation from the bibliography style file to the initial uppercase/lowercase letters for words in titles of papers/articles. I'm not sure that this was ever a good idea, and it's been messing up bibliographies ever since... Anyway, what this means is that terms such as LLM need to be included as \{LLM\} or they might get turned into `llm'---as has indeed happened in your case.}
 
 \bibliographystyle{aaai}
 \bibliography{references}
