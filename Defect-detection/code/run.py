@@ -94,6 +94,10 @@ MODEL_CLASSES = {
         DistilBertForSequenceClassification,
         DistilBertTokenizer,
     ),
+
+    "codebert-base": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
+    "graphcodebert-base": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
+    "roberta": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
     "codet5": (T5Config, T5EncoderModel, RobertaTokenizer),
     "codet5_full": (T5Config, T5ForConditionalGeneration, RobertaTokenizer),
     #"natgen": (T5Config, T5EncoderModel, RobertaTokenizer),
@@ -1406,7 +1410,7 @@ def main():
     if args.use_wandb and args.local_rank in [-1, 0]:
         # Auto-generate run name if not provided
         if args.wandb_run_name is None:
-            args.wandb_run_name = f"{args.model_type}_{args.train_data_file.split('/')[-2]}_{args.pos_weight}"
+            args.wandb_run_name = f"{args.model_type}_{args.train_data_file.split('/')[-2]}_{args.pos_weight}_seed{args.seed}"
         
         wandb.init(
             project=args.wandb_project,

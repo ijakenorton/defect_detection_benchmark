@@ -9,7 +9,7 @@ sbatch_args() {
     echo "--gpus-per-node=1 --partition=${gpu} --mem=64gb --job-name=${name} --time=${time}:00:00 --output=/projects/sciences/computing/norja159/research/scripts/${job_name}_out/${name}_%j.out"
 }
 
-test_split_all() {
+train_split_all() {
     local -n dataset_array=$1
     local -n seed_array=$2
     local time=$3
@@ -21,8 +21,7 @@ test_split_all() {
 		export dir=${name}
 		for seed in "${seed_array[@]}"; do
 			export seed=${seed}
-			sbatch $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh
-			#echo $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh
+			sbatch $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) train_split.sh
 		done
 	done
 }
@@ -35,39 +34,10 @@ seeds=(123456 789012 345678)
 datasets=(icvul mvdsc_mixed devign vuldeepecker cvefixes juliet reveal)
 big_datasets=(diversevul draper) 
 
-
-
-#codebert
-export model_name=microsoft/codebert-base
-export tokenizer_name=microsoft/codebert-base
-export model_type=codebert-base
-test_split_all datasets seeds 20
-test_split_all big_datasets seeds 50
-
-#graphcodebert
-export model_name=microsoft/graphcodebert-base
-export tokenizer_name=microsoft/graphcodebert-base
-export model_type=graphcodebert-base
-test_split_all datasets seeds 20
-test_split_all big_datasets seeds 50
-
-#codet5 encoder decoder
-export model_name=Salesforce/codet5-base
-export tokenizer_name=Salesforce/codet5-base
-export model_type=codet5_full
-test_split_all datasets seeds 20
-test_split_all big_datasets seeds 50
-
 #codet5 encoder only
 export model_name=Salesforce/codet5-base
 export tokenizer_name=Salesforce/codet5-base
 export model_type=codet5
-test_split_all datasets seeds 20
-test_split_all big_datasets seeds 50
+train_split_all datasets seeds 20
+train_split_all big_datasets seeds 50
 
-#natgen
-export model_name=../models/pretrained/natgen
-export tokenizer_name=Salesforce/codet5-base
-export model_type=natgen
-test_split_all datasets seeds 20
-test_split_all big_datasets seeds 50
