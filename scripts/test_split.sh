@@ -18,7 +18,6 @@ python ../Defect-detection/code/run.py \
     --model_type=${model_type} \
     --tokenizer_name=${tokenizer_name} \
     --model_name_or_path=${model_name} \
-    --do_eval \
     --do_test \
     --one_data_file=../data/$dir/${dir}_full_dataset.jsonl \
     --epoch $epoch \

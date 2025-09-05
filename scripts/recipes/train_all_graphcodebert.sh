@@ -14,44 +14,29 @@ test_split_all() {
     local -n seed_array=$2
     local time=$3
 
+	echo seeds: "${seed_array[@]}"
+	echo datasets: "${dataset_array[@]}"
 	echo "Submitted jobs with model_name: $model_name model_type: $model_type pos: $pos_weight out_suffix: $out_suffix epoch: $epoch tokenizer_name: $tokenizer_name seed: $seeds"
 	for name in "${dataset_array[@]}"; do
-        (
 		export dir=${name}
 		for seed in "${seed_array[@]}"; do
-            (
 			export seed=${seed}
+			sbatch $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh
 			#echo $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh
-			sbatch $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh 
-        )
 		done
-    )
 	done
 }
 
-#defaults
 export out_suffix=splits
 export pos_weight=1.0
 export epoch=5
-export model_config_dir="./model_configs"
 seeds=(123456 789012 345678)
 datasets=(icvul mvdsc_mixed devign vuldeepecker cvefixes juliet reveal)
 big_datasets=(diversevul draper) 
 
-
-#Run
-echo "=========================Config==========================="
-ls -1 ${model_config_dir}/*.sh
-echo seeds: "${seeds[@]}"
-echo datasets: "${datasets[@]}"
-echo big_datasets: "${big_datasets[@]}"
-for model_config in ${model_config_dir}/*.sh; do
-    (
-    source "$model_config"
-
-    test_split_all datasets seeds 20
-    test_split_all big_datasets seeds 50
-)
-done
-
-
+#graphcodebert
+export model_name=microsoft/graphcodebert-base
+export tokenizer_name=microsoft/graphcodebert-base
+export model_type=graphcodebert-base
+train_split_all datasets seeds 20
+train_split_all big_datasets seeds 50
