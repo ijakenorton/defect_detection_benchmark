@@ -54,92 +54,85 @@ veronica.liesaputra@otago.ac.nz
 \maketitle
 
 \begin{abstract}
-	Reproducible benchmarking in vulnerability detection\notedme{This is a bit too encoded: it's not clear what `vulnerability detection' is?} remains challenging due to inconsistent implementations, varying data preprocessing, and methodological flaws that compromise fair model comparison. In a recent study, 9 in 10 vulnerability detection studies were found to use inappropriate evaluation approaches, with models achieving high scores through spurious correlations rather than actual vulnerability detection. We present VulnBench, an extensible, open-source framework\notedme{What's the difference between a benchmark and a framework?} that standardizes evaluation methodology\notedme{Does it standardise evaluation methodology? I'm not entirely sure what this means?} to enable fair comparison across models and datasets. Our systematic evaluation of CodeBERT, GraphCodeBERT, CodeT5 (encoder-only and full), and NatGen across nine datasets\notedme{Say what sorts of datasets these are?} reveals that proper threshold optimization can improve F1-scores by up to 58\%, \notedme{Good to here, but the rest of the sentence needs reworking I think} while exposing severe dataset quality variations ranging from 25\% to 82\% F1-score that question the validity of many existing comparisons. By providing rigorous evaluation protocols\notedme{I'd be inclined to check that your notion of rigorous evaluation protocol matches others' examples of such a statement. I'm not doubting your achievement, just wondering about the framing of `rigorous' in particular.}, VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts\notedme{Good.} as well as reducing wasteful duplication of effort spent on reproducing results.
+	Reproducible benchmarking for automatically detecting vulnerabilities in source code remains challenging due to inconsistent implementations, varying data preprocessing, and methodological flaws that compromise fair model comparison. In a recent study, 9 in 10 vulnerability detection studies were found to use inappropriate evaluation approaches, with models achieving high scores through spurious correlations rather than actual vulnerability detection. We present VulnBench, an extensible, open-source benchmarking tool that enables fair comparison across models and datasets. Our systematic evaluation of CodeBERT, GraphCodeBERT, CodeT5 (encoder-only and full), and NatGen across nine mostly C/C++ source code datasets reveals that proper threshold optimization can improve F1-scores by up to 58\%, as well as large variation in ~25\% to ~90\% F1-scores showing the large gap in the difficulty of the vulnerability dataset field. By standardising evaluation protocols, VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts as well as reducing wasteful duplication of effort spent on reproducing results.
 \end{abstract}
 
 
 \section{Introduction}
 
-Software vulnerabilities represent critical security risks that can lead to data breaches, system compromises, and substantial economic losses. Traditional vulnerability detection methods rely heavily on static analysis tools and manual code reviews, which are resource-intensive and often miss complex vulnerability patterns. The emergence of machine learning approaches, particularly deep learning models trained on large code corpora, has shown promise in automating vulnerability detection with improved accuracy and coverage \notedme{Good, but citation required here.}.
+Software vulnerabilities represent critical security risks that can lead to data breaches, system compromises, and substantial economic losses. Traditional vulnerability detection methods rely heavily on static analysis tools and manual code reviews, which are resource-intensive and often miss complex vulnerability patterns. The emergence of machine learning approaches, particularly deep learning models trained on large code corpora, has shown promise in automating vulnerability detection with improved accuracy and coverage due to these models having much better semantical understanding \citep{systematic2024survey}.
 
 Recent advances in transformer-based models have revolutionized code understanding tasks. Models like CodeBERT \citep{feng2020codebert} and CodeT5 \citep{wang2021codet5} leverage pre-training on massive code repositories to capture semantic relationships in source code. Graph-enhanced approaches such as GraphCodeBERT \citep{guo2021graphcodebert} incorporate structural code information to improve understanding of data flow and control dependencies.
 
 However, evaluating and comparing these models faces significant methodological challenges. A recent study found that 9 out of 10 vulnerability detection papers studied used inappropriate problem formulations, with models achieving high scores through spurious correlations rather than actual vulnerability detection \citep{risse2025top}. Implementation inconsistencies are common, with studies often relying on incomplete model reproductions or subtly different data preprocessing approaches \citep{codecse2024}.
 
-Furthermore, critical methodological considerations are often overlooked. Default classification thresholds (0.5) are frequently suboptimal for the severely imbalanced datasets common in vulnerability detection, yet systematic threshold optimization remains rare \citep{ghost2021, leevy2023optimal}. Recent work specifically examining vulnerability detection datasets confirms that proper threshold selection and loss function choice significantly impact performance on imbalanced data \citep{he2025imbalance}, \notedme{From here on you're close to what you said at the start of the paragraph. I'd say just merge this end content into the existing start-of-paragraph sentence.} yet many comparative studies fail to address these fundamental evaluation requirements.
+Furthermore, critical methodological considerations are often overlooked. Default classification thresholds (0.5) are frequently suboptimal for the severely imbalanced datasets common in vulnerability detection, yet systematic threshold optimization remains rare \citep{ghost2021, leevy2023optimal}. Recent work specifically examining vulnerability detection datasets confirms that proper threshold selection and loss function choice significantly impact performance on imbalanced data \citep{he2025imbalance}.
 
-Reproducible benchmarking in vulnerability detection remains challenging due to inconsistent implementations, varying data preprocessing, and substantial (repeatedly duplicated)\notedme{The duplication is not the main point: you could remove the word. The duplication is an additional point made in passing, so I've made it parenthetical.} effort required for fair model comparison. While prior work has evaluated state-of-the-art models across different datasets, these studies often rely on incomplete implementations or subtly different data handling, hindering reproducibility and collaborative progress.\notedme{The ending is a bit vague, e.g., `collaborative progress'. Also, beyond reproducibility, you could mention comparative evaluation perhaps?}
+For the reasons stated above, VulnBench aims to provide researchers with a strong starting point in which to start their exploration into the space.
 
 \section{VulnBench Architecture and Features}
 
 VulnBench provides a comprehensive benchmarking platform addressing systematic evaluation challenges in vulnerability detection research. The framework implements four key architectural components:
 
 \begin{itemize}
-	\item \textbf{Unified Model Interface:} Provides consistent APIs over diverse transformer architectures. Researchers can easily add new models by implementing a standard interface, with automatic handling of architectural differences (encoder-only vs. encoder-decoder, different tokenization schemes and loss functions).
-	\item \textbf{Automated Data Pipeline:} Handles nine vulnerability datasets with standardized preprocessing\notedme{What does this mean?}. Features include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization \notedme{Will all readers appreciate why this is needed?}, and configurable train/validation/test ratios. Custom datasets will require conversion to a given JSONL format, however, there are many script recipes provided to use as templates.
-	\item \textbf{Rigorous Evaluation Engine:} Implements threshold optimization, multi-seed statistical testing, and comprehensive metrics. Automatically generates performance reports with confidence intervals, statistical significance tests, and comparative analysis.
-	\item \textbf{Experiment Tracking:} Integrated Weights \& Biases support with standalone logging fallback. Provides real-time training monitoring, hyperparameter comparison, and automated results aggregation across multiple seeds.
+	\item \textbf{Unified Model Interface:} Provides consistent APIs over diverse transformer architectures. Researchers can easily add new models by implementing a standard interface, with built-in handling of architectural differences (encoder-only vs. encoder-decoder, different tokenization schemes and loss functions).
 
+	\item \textbf{Automated Data Pipeline:} Handles nine vulnerability datasets preprocessed into a standard format. Features will include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization , and configurable train/validation/test ratios. Function anonymization is important for datasets like Juliet as they include information about the code in the function declaration which tells the model how to classify it, e.g. `void CWE114\_Process\_Control\_bad()'. Custom datasets will require conversion to a given JSONL format, however, there are many script recipes provided to use as templates.
+
+	\item \textbf{Evaluation Engine:} Implements threshold optimization, multi-seed statistical testing, and comprehensive metrics. Automatically generates performance reports with confidence intervals, statistical significance tests, and comparative analysis.
+
+	\item \textbf{Experiment Tracking:} Integrated Weights \& Biases support with standalone logging fallback. Provides real-time training monitoring, hyperparameter comparison, and automated results aggregation across multiple seeds.
 \end{itemize}
+
 \section{Related Work}
 
-\textbf{\change[General ]{}Code Understanding Benchmarks.} CodeXGLUE \citep{lu2021codexglue} represents the most comprehensive benchmarking effort for code intelligence, providing 14 datasets across 10 tasks including defect detection, with standardized evaluation protocols and baseline models. However, CodeXGLUE focuses broadly on code understanding rather than specifically addressing the methodological challenges in vulnerability detection evaluation.
+\textbf{Code Understanding Benchmarks.} CodeXGLUE \citep{lu2021codexglue} represents the most comprehensive benchmarking effort for code intelligence, providing 14 datasets across 10 tasks including defect detection, with standardized evaluation protocols and baseline models. However, CodeXGLUE focuses broadly on code understanding rather than specifically addressing the methodological challenges in vulnerability detection evaluation.
 
-\textbf{Vulnerability-Specific Benchmarks.} Many frameworks target vulnerability detection specifically. CASTLE \citep{castle2025} introduces a curated collection of 250 \change[compilable ]{}C programs for evaluating static analyzers, formal verification tools, and LLMs, with balanced vulnerable/non-vulnerable distributions. VulnLLMEval \citep{vulnllmeval2024} specifically evaluates large language models on vulnerability detection and patching tasks using real-world CVE data.
+\textbf{Vulnerability-Specific Benchmarks.} Many frameworks target vulnerability detection specifically. CASTLE \citep{castle2025} introduces a curated collection of 250 \change[compilable ]{}C programs for evaluating static analyzers, formal verification tools, and LLMs, with balanced vulnerable/non-vulnerable distributions.
 
-\textbf{Critical Evaluation Issues.} Recent work has identified fundamental problems with current evaluation approaches. \notedme{I don't think you can repeat the menton of this study as if you have not already talked about it. Make a quick back referenece at most, I'd say.} Risse et al. \citep{risse2025top} demonstrate that 9 in 10 ML-based vulnerability detection papers they studied use inappropriate problem formulations, with models achieving high scores through spurious correlations rather than actual vulnerability detection. Studies of popular datasets (BigVul, CVEFixes, DiverseVul) reveal significant data leakage issues and labeling problems that compromise evaluation validity \citep{ullah2024vulnerability}.
+\textbf{Critical Evaluation Issues.} Recent work has identified fundamental problems with current evaluation approaches \citep{risse2025top}. Studies of popular datasets (BigVul, CVEFixes, DiverseVul) reveal significant data leakage issues and labeling problems that compromise evaluation validity \citep{ullah2024vulnerability}.
 
-\textbf{Benchmarking of Static Analysis Tools.} Traditional \notedme{in what sense?} evaluation of vulnerability detection tools has focused on static analysis tools. Web service vulnerability detection studies \citep{antunes2010benchmarking} propose benchmarking approaches for comparing penetration testing tools, static analyzers, and anomaly detectors using metrics like precision, recall, and F-measure. Comprehensive evaluations of memory error detectors \citep{zhang2021evaluating} against benchmark datasets reveal varied accuracy across vulnerability categories and highlight the challenges of making fair comparisons.
+\textbf{Benchmarking of Static Analysis Tools.} Web service vulnerability detection studies \citep{antunes2010benchmarking} propose benchmarking approaches for comparing penetration testing tools, static analyzers, and anomaly detectors using metrics like precision, recall, and F-measure. Comprehensive evaluations of memory error detectors \citep{zhang2021evaluating} against benchmark datasets reveal varied accuracy across vulnerability categories and highlight the challenges of making fair comparisons.
 
 \textbf{Dataset Quality and Standardization.} Systematic surveys \citep{systematic2024survey} reveal that 39.1\% of vulnerability detection studies use hybrid data sources combining benchmarks, repositories, and projects, while 37.6\% rely on standardized benchmark datasets. However, many proposed benchmarking frameworks \citep{lin2020deep} focus on specific neural network architectures rather than providing systematic evaluation methodology.
 
-\textbf{Distinguishing Characteristics of VulnBench.} Unlike existing work, VulnBench addresses the methodological evaluation crisis by providing: (1) standardized threshold optimization addressing severe class imbalances, (2) architecture-aware evaluation protocols handling transformer model differences, and (3) systematic dataset quality assessment revealing artifacts that compromise research validity. While frameworks like CodeXGLUE provide broad code understanding benchmarks and OWASP/CASTLE focus on specific tool evaluation, VulnBench uniquely combines rigorous evaluation methodology with comprehensive transformer model comparison across diverse vulnerability datasets.\notedme{This last bit needs unpacking: too dense / not quite clear enough.}
+\textbf{Distinguishing Characteristics of VulnBench.} Unlike existing work, VulnBench addresses the methodological issues by providing: (1) standardized threshold optimization addressing severe class imbalances, (2) architecture-aware evaluation protocols handling transformer model differences, and (3) systematic dataset quality assessment revealing artifacts that compromise research validity. Existing frameworks serve different purposes: CodeXGLUE provides broad benchmarks for general code understanding tasks, while OWASP Benchmark and CASTLE focus on evaluating specific security tools in controlled environments.
 
 \section{Demonstration Results}
 
-
 \begin{table}[ht]
 	\centering
-	\caption{Model Performance (F1-Score \%) with Optimized Thresholds
-	{\Huge TINY TABLE. Resizebox is \textbf{EVIL}!}
-	}
+	\caption{Best Model Performance per Dataset (F1-Score, 3 seeds)}
 	\label{tab:results}
-	\resizebox{\columnwidth}{!}{
-		\begin{tabular}{lcccccc}
-			\toprule
-			Dataset      & CodeBERT & GraphCodeBERT     & CodeT5-Enc & CodeT5-Full       & NatGen            & Best \\
-			\midrule
-			DIVERSEVUL   & 25.1±1.2 & 26.3±1.5          & 23.8±1.1   & 27.2±1.4          & \textbf{28.5±1.6} & 28.5 \\
-			ICVUL        & 57.8±2.1 & 59.2±1.8          & 55.3±2.3   & 61.4±2.0          & \textbf{63.7±1.9} & 63.7 \\
-			MVDSC        & 80.6±0.8 & 81.2±0.9          & 79.8±1.1   & \textbf{82.1±0.7} & 81.5±1.0          & 82.1 \\
-			Devign       & 62.3±1.7 & \textbf{64.8±1.5} & 59.1±2.0   & 63.2±1.8          & 62.9±1.6          & 64.8 \\
-			CVEFixes     & 41.2±1.9 & 42.6±2.1          & 38.7±2.2   & 43.1±1.8          & \textbf{44.3±2.0} & 44.3 \\
-			Draper       & 71.5±1.3 & 72.8±1.1          & 69.9±1.6   & \textbf{74.2±1.2} & 73.6±1.4          & 74.2 \\
-			VulDeepecker & 68.4±1.5 & 69.7±1.3          & 66.8±1.7   & \textbf{71.2±1.4} & 70.5±1.6          & 71.2 \\
-			Juliet       & 76.2±1.0 & 77.1±0.9          & 74.6±1.2   & \textbf{78.5±1.1} & 77.8±1.0          & 78.5 \\
-			Reveal       & 54.7±2.3 & 56.2±2.0          & 52.1±2.5   & 57.3±2.1          & \textbf{58.9±1.9} & 58.9 \\
-			\midrule
-			Average      & 59.8     & 61.1              & 57.8       & \textbf{64.2}     & 62.4              & -    \\
-			\bottomrule
-		\end{tabular}}
+	\begin{tabular}{lcc}
+		\toprule
+		Dataset      & Best Model    & F1-Score    \\
+		\midrule
+		CVEFixes     & GraphCodeBERT & 0.603±0.006 \\
+		Devign       & CodeT5        & 0.671±0.010 \\
+		DiverseVul   & NatGen        & 0.307±0.025 \\
+		Draper       & CodeT5        & 0.609±0.007 \\
+		ICVul        & NatGen        & 0.586±0.003 \\
+		Juliet       & NatGen        & 0.900±0.003 \\
+		Reveal       & GraphCodeBERT & 0.486±0.007 \\
+		VulDeepecker & CodeT5        & 0.959±0.001 \\
+		\bottomrule
+	\end{tabular}
 \end{table}
-We demonstrate VulnBench's capabilities through systematic evaluation of five transformer variants across nine datasets. The tool automatically:
 
-\begin{itemize}
-	\item Identifies datasets with potential quality issues (e.g., MVDSC's unusually high 82\% F1 across all models).
-	\item Reveals significant threshold optimization opportunities (15--58\% F1 improvements)\notedme{Fixed: ranges use en-dashes (--) not hyphens (-)---dash-mega-pedentry!}.
-	\item Enables architectural comparisons showing T5-full models consistently outperform encoder-only variants.
-	\item Provides statistical confidence, including error bars driven by multi-seed evaluation.
-\end{itemize}
+VulnBench evaluation across four transformer architectures and eight datasets reveals critical methodological insights:
+\begin{enumerate}
+	\item \textbf{Threshold optimization universally improves performance}---100\% of model-dataset combinations show positive F1 gains (median: +0.082, best: +0.542)
+	\item \textbf{Dataset quality varies dramatically}---synthetic datasets (Juliet, VulDeepecker) achieve F1 > 0.9 while real-world datasets struggle (DiverseVul: 0.307)
+	\item \textbf{Architecture matters}---CodeT5 and NatGen consistently outperform encoder-only models. Complete results and reproducible code available at: \url{https://github.com/ijakenorton/defect_detection_benchmark}.
+\end{enumerate}
 
-\textbf{Practical Impact:} VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts. The framework has successfully exposed evaluation inconsistencies that could mislead research directions and provides standardized protocols for fair model comparison.
-\notedme{Statements like this (good!) need supporting evidence included or at least cited.}
+\textbf{Practical Impact:} VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts. Our evaluation confirms recent findings about dataset quality issues~\citep{ding2024vulnerability,chen2023diversevul}. Synthetic datasets in our evaluation (Juliet: F1=0.900, VulDeepecker: F1=0.959) show artificially inflated performance compared to real-world datasets (DiverseVul: F1=0.307, CVEFixes: F1=0.603), consistent with reports of significant data quality problems including poor label accuracy and high duplication rates~\cite{ding2024vulnerability}. While VulnBench does not resolve underlying dataset quality problems---which persist across widely-used benchmarks---it provides transparent evaluation protocols that expose these artifacts rather than obscure them.
 
 \section{Availability and Future Extensions}
 
-VulnBench is available as an open-source framework with comprehensive\notedme{I err on the side of avoiding inclusion of value judgements best left to reviewers, etc.} documentation and example configurations. The modular design enables easy extension with new models, datasets, and evaluation metrics. Future development includes support for additional transformer architectures, or other state-of-the-art models like LineVul or Vul\_Detection\_Gnn.
+VulnBench is available as an open-source framework. Future development includes support for additional transformer architectures, or other state-of-the-art models like LineVul or Vul\_Detection\_Gnn and integration of more datasets e.g. PrimeVul\citep{ding2024vulnerability}.
 
-\notedme{Your bibliography needs scanning for errors: BibTeX applies normalisation from the bibliography style file to the initial uppercase/lowercase letters for words in titles of papers/articles. I'm not sure that this was ever a good idea, and it's been messing up bibliographies ever since... Anyway, what this means is that terms such as LLM need to be included as \{LLM\} or they might get turned into `llm'---as has indeed happened in your case.}
 
 \bibliographystyle{aaai}
 \bibliography{references}
