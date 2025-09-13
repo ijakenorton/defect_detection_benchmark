@@ -54,7 +54,7 @@ veronica.liesaputra@otago.ac.nz
 \maketitle
 
 \begin{abstract}
-	Reproducible benchmarking for automatically detecting vulnerabilities in source code remains challenging due to inconsistent implementations, varying data preprocessing, and methodological flaws that compromise fair model comparison. In a recent study, 9 in 10 vulnerability detection studies were found to use inappropriate evaluation approaches, with models achieving high scores through spurious correlations rather than actual vulnerability detection. We present VulnBench, an extensible, open-source benchmarking tool that enables fair comparison across models and datasets. Our systematic evaluation of CodeBERT, GraphCodeBERT, CodeT5 (encoder-only and full), and NatGen across nine mostly C/C++ source code datasets reveals that proper threshold optimization can improve F1-scores by up to 58\%, as well as large variation in ~25\% to ~90\% F1-scores showing the large gap in the difficulty of the vulnerability dataset field. By standardising evaluation protocols, VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts as well as reducing wasteful duplication of effort spent on reproducing results.
+	Reproducible benchmarking for automatically detecting vulnerabilities in source code remains challenging due to inconsistent implementations, varying data preprocessing, and methodological flaws that compromise fair model comparison. In a recent study, 9 in 10 vulnerability detection studies were found to use inappropriate evaluation approaches, with models achieving high scores through spurious correlations rather than actual vulnerability detection. We present VulnBench, an extensible, open-source benchmarking tool that enables fair comparison across models and datasets. Our systematic evaluation of CodeBERT, GraphCodeBERT, CodeT5 (encoder-only and full), and NatGen across nine mostly C/C++ source code datasets reveals that proper threshold optimization can improve F1-scores by up to 54\%, as well as large variation in F1-scores showing the large gap in the difficulty of the vulnerability dataset field. By standardising evaluation protocols, VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts as well as reducing wasteful duplication of effort spent on reproducing results.
 \end{abstract}
 
 
@@ -68,7 +68,7 @@ However, evaluating and comparing these models faces significant methodological 
 
 Furthermore, critical methodological considerations are often overlooked. Default classification thresholds (0.5) are frequently suboptimal for the severely imbalanced datasets common in vulnerability detection, yet systematic threshold optimization remains rare \citep{ghost2021, leevy2023optimal}. Recent work specifically examining vulnerability detection datasets confirms that proper threshold selection and loss function choice significantly impact performance on imbalanced data \citep{he2025imbalance}.
 
-For the reasons stated above, VulnBench aims to provide researchers with a strong starting point in which to start their exploration into the space.
+For the reasons stated above, VulnBench aims to provide researchers with a strong starting point to start their exploration into the space.
 
 \section{VulnBench Architecture and Features}
 
@@ -77,7 +77,7 @@ VulnBench provides a comprehensive benchmarking platform addressing systematic e
 \begin{itemize}
 	\item \textbf{Unified Model Interface:} Provides consistent APIs over diverse transformer architectures. Researchers can easily add new models by implementing a standard interface, with built-in handling of architectural differences (encoder-only vs. encoder-decoder, different tokenization schemes and loss functions).
 
-	\item \textbf{Automated Data Pipeline:} Handles nine vulnerability datasets preprocessed into a standard format. Features will include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization , and configurable train/validation/test ratios. Function anonymization is important for datasets like Juliet as they include information about the code in the function declaration which tells the model how to classify it, e.g. `void CWE114\_Process\_Control\_bad()'. Custom datasets will require conversion to a given JSONL format, however, there are many script recipes provided to use as templates.
+	\item \textbf{Automated Data Pipeline:} Handles nine vulnerability datasets preprocessed into a standard format. Features will include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization, and configurable train/validation/test ratios. Function anonymization is important for datasets like Juliet C/C++ \citep{juliet2022} as they include information about the code in the function declaration which tells the model how to classify it, e.g. `void CWE114\_Process\_Control\_bad()'. Custom datasets will require conversion to a given JSONL format, however, there are many script recipes provided to use as templates.
 
 	\item \textbf{Evaluation Engine:} Implements threshold optimization, multi-seed statistical testing, and comprehensive metrics. Automatically generates performance reports with confidence intervals, statistical significance tests, and comparative analysis.
 
