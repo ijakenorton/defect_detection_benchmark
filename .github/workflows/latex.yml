@@ -1,0 +1,26 @@
+name: Build AAAI Paper
+on:
+  push:
+    branches: [ demo_paper ]  
+  pull_request:
+    branches: [ demo_paper ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: demo_paper/draft.tex
+          args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
+          
+      - name: Upload PDF
+        uses: actions/upload-artifact@v3
+        with:
+          name: vulnbench-demo-paper
+          path: demo_paper/artifacts/draft.pdf
+
