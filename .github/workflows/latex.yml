@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v3
@@ -19,7 +19,7 @@ jobs:
           args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
           
       - name: Upload PDF
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: vulnbench-demo-paper
           path: demo_paper/artifacts/draft.pdf
