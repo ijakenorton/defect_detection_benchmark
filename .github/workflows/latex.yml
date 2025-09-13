@@ -23,5 +23,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vulnbench-demo-paper
-          path: demo_paper/artifacts/draft.pdf
+          path: demo_paper/draft.pdf
 
