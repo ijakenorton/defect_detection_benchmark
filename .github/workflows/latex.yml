@@ -15,7 +15,8 @@ jobs:
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v3
         with:
-          root_file: demo_paper/draft.tex
+          root_file: draft.tex
+          working_directory: demo_paper
           args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
           
       - name: Upload PDF
