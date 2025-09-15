@@ -32,13 +32,13 @@
 % \author{
 % Jake Norton, David Eyers, Veronica Liesaputra\\
 % University of Otago\\
-% \{norja159, david.eyers, veronica.liesaputra\}@otago.ac.nz
+% \{jake.norton, david.eyers, veronica.liesaputra\}@otago.ac.nz
 % }
 
 \author{
 Jake Norton\\
 University of Otago\\
-norja159@student.otago.ac.nz
+jake.norton@otago.ac.nz
 \And
 David Eyers\\
 University of Otago\\
@@ -64,7 +64,7 @@ Software vulnerabilities represent critical security risks that can lead to data
 
 Recent advances in transformer-based models have revolutionized code understanding tasks. Models like CodeBERT \citep{feng2020codebert} and CodeT5 \citep{wang2021codet5} leverage pre-training on massive code repositories to capture semantic relationships in source code. Graph-enhanced approaches such as GraphCodeBERT \citep{guo2021graphcodebert} incorporate structural code information to improve understanding of data flow and control dependencies.
 
-However, evaluating and comparing these models faces significant methodological challenges. \cite{risse2025top} found that vulnerability detection papers they studied often used flawed problem formulations, with models achieving high scores through misleading correlations rather than truly detecting vulnerabilities. 
+However, evaluating and comparing these models faces significant methodological challenges. \cite{risse2025top} found that vulnerability detection papers they studied often used flawed problem formulations, with models achieving high scores through misleading correlations rather than truly detecting vulnerabilities.
 
 Furthermore, critical methodological considerations are often overlooked. Default classification thresholds (0.5) are frequently suboptimal for the severely imbalanced datasets common in vulnerability detection, yet systematic threshold optimization remains rare \citep{ghost2021, leevy2023optimal}. Recent work specifically examining vulnerability detection datasets confirms that proper threshold selection and loss function choice significantly impact performance on imbalanced data \citep{he2025imbalance}.
 
@@ -124,7 +124,7 @@ VulnBench evaluation across four transformer architectures and eight datasets re
 \begin{enumerate}
 	\item \textbf{Threshold optimization universally improves performance}---100\% of model-dataset combinations show positive F1 gains (median: +0.082, best: +0.542)
 	\item \textbf{Dataset quality varies dramatically}---synthetic datasets (Juliet, VulDeepecker) achieve F1 > 0.9 while real-world datasets struggle (DiverseVul: 0.307)
-	\item \textbf{Architecture matters}---CodeT5 and NatGen consistently outperform encoder-only models. 
+	\item \textbf{Architecture matters}---CodeT5 and NatGen consistently outperform encoder-only models.
 \end{enumerate}
 
 Complete results and reproducible code available online\footnote{\url{https://github.com/ijakenorton/defect_detection_benchmark}}.
@@ -137,7 +137,7 @@ VulnBench is available as an open-source framework. Future development includes:
 
 \section*{Acknowledgements}
 This research was supported by the Ministry of Business, Innovation and Employment (MBIE), New Zealand. The author gratefully acknowledges this funding, which made this work possible.
- We also acknowledge the open-source community for providing the datasets and tools that enabled this evaluation framework.
+We also acknowledge the open-source community for providing the datasets and tools that enabled this evaluation framework.
 
 \bibliographystyle{aaai}
 \bibliography{references}
