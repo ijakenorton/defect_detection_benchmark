@@ -64,7 +64,7 @@ Software vulnerabilities represent security risks that can lead to critical data
 
 Recent advances in transformer-based models have revolutionized code understanding tasks. Models like CodeBERT \citep{feng2020codebert} and CodeT5 \citep{wang2021codet5} leverage pre-training on massive code repositories to capture semantic relationships in source code. Graph-enhanced approaches such as GraphCodeBERT \citep{guo2021graphcodebert} incorporate structural code information to improve understanding of data flow and control dependencies.
 
-However, evaluating and comparing these models \change[faces significant methodological challenges]{is challenging}. \cite{risse2025top} found that vulnerability detection papers they studied often used flawed problem formulations, with models achieving high scores through misleading correlations rather than truly detecting vulnerabilities.
+However, evaluating and comparing these models is challenging. \cite{risse2025top} found that vulnerability detection papers they studied often used flawed problem formulations, with models achieving high scores through misleading correlations rather than truly detecting vulnerabilities.
 
 Furthermore, critical methodological considerations are often overlooked. Default classification thresholds (0.5) are frequently suboptimal for the severely imbalanced datasets common in vulnerability detection, yet systematic threshold optimization remains rare \citep{ghost2021, leevy2023optimal}. Recent work specifically examining vulnerability detection datasets confirms that proper threshold selection and loss function choice significantly impact performance on imbalanced data \citep{he2025imbalance}.
 
@@ -78,9 +78,9 @@ VulnBench provides a comprehensive benchmarking platform addressing systematic e
 \begin{itemize}
 	\item \textbf{Unified Model Interface:} Provides consistent APIs over diverse transformer architectures. Researchers can easily add new models by implementing a standard interface, with built-in handling of architectural differences (encoder-only versus encoder-decoder, different tokenization schemes and loss functions).
 
-	\item \textbf{Automated Data Pipeline:} Handles nine vulnerability datasets preprocessed into a standard format. Features 
-	%will 
-	include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization, and configurable train/validation/test ratios. Function anonymization is important for datasets like Juliet C/C++ \citep{juliet2022} as they include information about the code in the function declaration which tells the model how to classify it, e.g., `void CWE114\_Process\_Control\_bad()'. Custom datasets will require conversion to a given JSONL format, however, there are many script recipes provided to use as templates.
+	\item \textbf{Automated Data Pipeline:} Handles nine vulnerability datasets preprocessed into a standard format. Features
+	      %will 
+	      include reproducible seed-based splitting, automatic dataset downloading, consistent function anonymization, and configurable train/validation/test ratios. Function anonymization is important for datasets like Juliet C/C++ \citep{juliet2022} as they include information about the code in the function declaration which tells the model how to classify it, e.g., `void CWE114\_Process\_Control\_bad()'. Custom datasets will require conversion to a given JSONL format, however, there are many script recipes provided to use as templates.
 
 	\item \textbf{Evaluation Engine:} Implements threshold optimization, multi-seed statistical testing, and comprehensive metrics. Automatically generates performance reports with confidence intervals, statistical significance tests, and comparative analysis.
 
@@ -99,7 +99,7 @@ VulnBench provides a comprehensive benchmarking platform addressing systematic e
 
 \textbf{Dataset Quality and Standardization.} Systematic surveys \citep{systematic2024survey} reveal that 39.1\% of vulnerability detection studies use hybrid data sources combining benchmarks, repositories, and projects, while 37.6\% rely on standardized benchmark datasets. However, many proposed benchmarking frameworks \citep{lin2020deep} focus on specific neural network architectures rather than providing systematic evaluation methodology.
 
-\textbf{Distinguishing Characteristics of VulnBench.} Unlike existing work, VulnBench addresses 
+\textbf{Distinguishing Characteristics of VulnBench.} Unlike existing work, VulnBench addresses
 %the 
 methodological issues by providing: (1) standardized threshold optimization addressing severe class imbalances, (2) architecture-aware evaluation protocols handling transformer model differences, and (3) systematic dataset quality assessment revealing artifacts that compromise research validity. Existing frameworks serve different purposes: CodeXGLUE provides broad benchmarks for general code understanding tasks, while OWASP Benchmark and CASTLE focus on evaluating specific security tools in controlled environments.
 
@@ -134,7 +134,7 @@ VulnBench evaluation across four transformer architectures and eight datasets re
 \end{enumerate}
 
 
-\textbf{Practical Impact:} VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts. Our evaluation confirms recent findings about dataset quality issues~\citep{ding2025vulnerability,chen2023diversevul}. Synthetic datasets in our evaluation (Juliet: F1=0.900, VulDeepecker: F1=0.959) show artificially inflated performance compared to real-world datasets (DiverseVul: F1=0.307, CVEFixes: F1=0.603), consistent with reports of significant data quality problems including poor label accuracy and high duplication rates~\cite{ding2025vulnerability}. VulnBench does not resolve underlying dataset quality problems---which persist across widely-used benchmarks---but it provides transparent evaluation protocols that expose these artifacts. % rather than obscuring them.
+\textbf{Practical Impact:} VulnBench enables researchers to distinguish between genuine model improvements and methodological artifacts. Our evaluation confirms recent findings about dataset quality issues~\citep{ding2025vulnerability,chen2023diversevul}. Synthetic datasets in our evaluation (Juliet: F1=0.900, VulDeepecker: F1=0.959) show artificially inflated performance compared to real-world datasets (DiverseVul: F1=0.307, CVEFixes: F1=0.603), consistent with reports of significant data quality problems including poor label accuracy and high duplication rates~\cite{ding2025vulnerability}. VulnBench does not resolve underlying dataset quality problems---which persist across widely-used benchmarks---but it provides transparent evaluation protocols that expose these artifacts.
 
 \section{Availability and Future Extensions}
 
