@@ -171,7 +171,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
 
 no_train = True
-def train(args, train_dataset, model, tokenizer):
+def train(args, train_dataset, model, tokenizer, tb_writer=None):
     """Train the model"""
     global no_train
     if no_train:
@@ -330,6 +330,14 @@ def train(args, train_dataset, model, tokenizer):
                     "train/step": step,
                     "train/global_step": global_wandb_step
                 }, step=global_wandb_step)
+
+            # Log to tensorboard every 50 steps
+            if tb_writer is not None and args.local_rank in [-1, 0] and step % 50 == 0:
+                current_lr = optimizer.param_groups[0]['lr']
+                tb_writer.add_scalar("train/loss", avg_loss, global_wandb_step)
+                tb_writer.add_scalar("train/learning_rate", current_lr, global_wandb_step)
+                tb_writer.add_scalar("train/epoch", idx, global_wandb_step)
+                tb_writer.add_scalar("train/step", step, global_wandb_step)
             
             # Add logging every 100 steps (existing code)
             if step % 100 == 0:
@@ -374,6 +382,13 @@ def train(args, train_dataset, model, tokenizer):
                                 "eval/global_step": global_step,
                             })
                             wandb.log(wandb_metrics, step=global_wandb_step)
+
+                        # Log evaluation results to tensorboard
+                        if tb_writer is not None:
+                            for key, value in results.items():
+                                tb_writer.add_scalar(f"eval/{key}", value, global_wandb_step)
+                            tb_writer.add_scalar("eval/epoch", idx, global_wandb_step)
+                            tb_writer.add_scalar("eval/global_step", global_step, global_wandb_step)
 
                         # Log evaluation results (existing code)
                         eval_acc = results.get("eval_acc", 0)
@@ -425,6 +440,13 @@ def train(args, train_dataset, model, tokenizer):
                 "epoch/epoch": idx,
                 "epoch/best_acc": best_acc
             }, step=global_wandb_step)
+
+        # Log epoch metrics to tensorboard
+        if tb_writer is not None and args.local_rank in [-1, 0]:
+            tb_writer.add_scalar("epoch/avg_loss", avg_loss, global_wandb_step)
+            tb_writer.add_scalar("epoch/examples_processed", tr_num * args.train_batch_size, global_wandb_step)
+            tb_writer.add_scalar("epoch/epoch", idx, global_wandb_step)
+            tb_writer.add_scalar("epoch/best_acc", best_acc, global_wandb_step)
         
         # Calculate average loss for the epoch (existing code)
         avg_loss = train_loss / tr_num
@@ -665,7 +687,7 @@ def _test_debug(args, model, tokenizer):
     # For debugging, return early
     return {"test_acc": 0.5, "precision": 0.5, "recall": 0.5, "f1": 0.5, "debug": "stopped_early"}
 
-def test(args, model, tokenizer):
+def test(args, model, tokenizer, tb_writer=None):
     # Load test dataset
     eval_dataset = TextDataset(tokenizer, args, args.test_data_file)
     args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
@@ -820,6 +842,15 @@ def test(args, model, tokenizer):
             "test/optimal_threshold": result["optimal_threshold"],
             "test/improvement": result["improvement"]
         })
+
+    # Log test results to tensorboard
+    if tb_writer is not None and args.local_rank in [-1, 0]:
+        tb_writer.add_scalar("test/accuracy", result["test_acc"], 0)
+        tb_writer.add_scalar("test/precision", result["precision"], 0)
+        tb_writer.add_scalar("test/recall", result["recall"], 0)
+        tb_writer.add_scalar("test/f1", result["f1"], 0)
+        tb_writer.add_scalar("test/optimal_threshold", result["optimal_threshold"], 0)
+        tb_writer.add_scalar("test/improvement", result["improvement"], 0)
         
         # Log threshold analysis table
         #threshold_results = []  
@@ -1273,9 +1304,20 @@ def main():
         help="Wandb run name (auto-generated if None)"
     )
     parser.add_argument(
-        "--use_wandb", 
-        action="store_true", 
+        "--use_wandb",
+        action="store_true",
         help="Whether to use wandb logging"
+    )
+    parser.add_argument(
+        "--use_tensorboard",
+        action="store_true",
+        help="Whether to use tensorboard logging"
+    )
+    parser.add_argument(
+        "--tensorboard_log_dir",
+        default="logs",
+        type=str,
+        help="TensorBoard log directory"
     )
 
     args = parser.parse_args()
@@ -1436,6 +1478,31 @@ def main():
         
         wandb.watch(model, log="all", log_freq=100)
 
+    # Initialize TensorBoard writer if requested
+    tb_writer = None
+    if args.use_tensorboard and args.local_rank in [-1, 0]:
+        # Create run-specific log directory
+        tb_run_name = f"{args.model_type}_{args.train_data_file.split('/')[-2] if args.train_data_file else 'unknown'}_{args.pos_weight}_seed{args.seed}"
+        tb_log_dir = os.path.join(args.tensorboard_log_dir, tb_run_name)
+        tb_writer = SummaryWriter(log_dir=tb_log_dir)
+
+        # Log hyperparameters
+        hparams = {
+            "model_type": args.model_type,
+            "learning_rate": args.learning_rate,
+            "batch_size": args.train_batch_size,
+            "epochs": args.epoch,
+            "pos_weight": args.pos_weight,
+            "dropout_probability": args.dropout_probability,
+            "block_size": args.block_size,
+            "seed": args.seed,
+            "gradient_accumulation_steps": args.gradient_accumulation_steps,
+            "max_grad_norm": args.max_grad_norm,
+            "weight_decay": args.weight_decay,
+            "warmup_steps": args.warmup_steps,
+        }
+        tb_writer.add_hparams(hparams, {})
+
     # Training
     if args.do_train:
         if args.local_rank not in [-1, 0]:
@@ -1445,7 +1512,7 @@ def main():
         if args.local_rank == 0:
             torch.distributed.barrier()
 
-        train(args, train_dataset, model, tokenizer)
+        train(args, train_dataset, model, tokenizer, tb_writer)
 
 
     # Evaluation
@@ -1460,15 +1527,23 @@ def main():
         for key in sorted(result.keys()):
             logger.info("  %s = %s", key, str(round(result[key], 4)))
 
+        # Log final evaluation results to tensorboard
+        if tb_writer is not None:
+            for key, value in result.items():
+                tb_writer.add_scalar(f"final_eval/{key}", value, 0)
+
     if args.do_test and args.local_rank in [-1, 0]:
         checkpoint_prefix = "checkpoint-best-acc/model.bin"
         output_dir = os.path.join(args.output_dir, "{}".format(checkpoint_prefix))
         model.load_state_dict(torch.load(output_dir))
         model.to(args.device)
-        test(args, model, tokenizer)
+        test(args, model, tokenizer, tb_writer)
 
     if args.use_wandb and args.local_rank in [-1, 0]:
         wandb.finish()
+
+    if tb_writer is not None:
+        tb_writer.close()
 
     return results
 
