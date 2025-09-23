@@ -22,7 +22,6 @@ test_split_all() {
 		for seed in "${seed_array[@]}"; do
 			export seed=${seed}
 			sbatch $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh
-			#echo $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh
 		done
 	done
 }

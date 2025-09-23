@@ -1,33 +1,7 @@
 #!/bin/bash
 
-sbatch_args() {
-    local job_name=$1
-    local seed=$2
-    local gpu=$3
-    local time=$4
-    name=${job_name}_${out_suffix}_${seed}
-    echo "--gpus-per-node=1 --partition=${gpu} --mem=64gb --job-name=${name} --time=${time}:00:00 --output=/projects/sciences/computing/norja159/research/scripts/${job_name}_out/${name}_%j.out"
-}
-
-train_split_all() {
-    local -n dataset_array=$1
-    local -n seed_array=$2
-    local time=$3
-
-	echo "Submitted jobs with model_name: $model_name model_type: $model_type pos: $pos_weight out_suffix: $out_suffix epoch: $epoch tokenizer_name: $tokenizer_name seed: $seeds"
-	for name in "${dataset_array[@]}"; do
-        (
-		export dir=${name}
-		for seed in "${seed_array[@]}"; do
-            (
-			export seed=${seed}
-			#echo $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) test_split.sh
-			sbatch $(sbatch_args ${name} ${seed} aoraki_gpu ${time}) train_split.sh 
-        )
-		done
-    )
-	done
-}
+source ${SCRIPTS_DIR}/utils/utils.sh
+setup_paths
 
 #defaults
 export out_suffix=splits
@@ -37,7 +11,6 @@ export model_config_dir="./model_configs"
 seeds=(123456 789012 345678)
 datasets=(icvul mvdsc_mixed devign vuldeepecker cvefixes juliet reveal)
 big_datasets=(diversevul draper) 
-
 
 #Run
 echo "=========================Config==========================="
@@ -49,8 +22,8 @@ for model_config in ${model_config_dir}/*.sh; do
     (
     source "$model_config"
 
-    train_split_all datasets seeds 20
-    train_split_all big_datasets seeds 50
+    sbatch_train_split_all datasets seeds aoraki_gpu 20
+    sbatch_train_split_all big_datasets seeds aoraki_gpu_H100 50
 )
 done
 

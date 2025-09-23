@@ -27,6 +27,7 @@ test_split_all() {
 	done
 }
 
+export model_config_dir="./model_configs"
 export out_suffix=splits
 export pos_weight=1.0
 export epoch=5
@@ -35,6 +36,7 @@ datasets=(icvul mvdsc_mixed devign vuldeepecker cvefixes juliet reveal)
 big_datasets=(diversevul draper) 
 
 #codebert
+source ${model_config_dir}/codebert.sh
 export model_name=microsoft/codebert-base
 export tokenizer_name=microsoft/codebert-base
 export model_type=codebert-base
