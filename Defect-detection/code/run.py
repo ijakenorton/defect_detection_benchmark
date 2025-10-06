@@ -96,6 +96,7 @@ MODEL_CLASSES = {
     ),
 
     "codebert-base": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
+    "linevul": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
     "graphcodebert-base": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
     "roberta": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
     "codet5": (T5Config, T5EncoderModel, RobertaTokenizer),
@@ -170,7 +171,7 @@ def set_seed(seed=42):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
-no_train = True
+no_train = False
 def train(args, train_dataset, model, tokenizer, tb_writer=None):
     """Train the model"""
     global no_train

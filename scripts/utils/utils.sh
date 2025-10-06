@@ -28,14 +28,17 @@ sbatch_test_split_all() {
     local -n seed_array=$2
     local gpu=${3:-aoraki_gpu}
     local time=${4:-5}
+	echo ${SCRIPTS_DIR}
 
 	echo "Submitted jobs with model_name: $model_name model_type: $model_type pos: $pos_weight out_suffix: $out_suffix epoch: $epoch tokenizer_name: $tokenizer_name seed: $seeds"
+
 	for name in "${dataset_array[@]}"; do
         (
 		export dataset_name=${name}
 		for seed in "${seed_array[@]}"; do
             (
 			export seed=${seed}
+			echo $(sbatch_args ${name} ${seed} ${gpu} ${time})
 			sbatch $(sbatch_args ${name} ${seed} ${gpu} ${time}) ${SCRIPTS_DIR}/test_split.sh 
         )
 		done

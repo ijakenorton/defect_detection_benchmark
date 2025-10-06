@@ -1,6 +1,7 @@
 #!/bin/bash
 
-source ${SCRIPTS_DIR}/utils/utils.sh
+THIS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source ${THIS_DIR}/../utils/utils.sh
 setup_paths
 
 # export model_name=microsoft/graphcodebert-base

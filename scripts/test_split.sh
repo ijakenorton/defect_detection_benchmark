@@ -1,6 +1,4 @@
 #!/bin/bash
-source ~/miniconda3/etc/profile.d/conda.sh
-export PYTHONNOUSERSITE=1 
 
 source ${SCRIPTS_DIR}/utils/utils.sh
 setup_paths
@@ -14,6 +12,8 @@ model_type=${model_type:-"roberta"}
 out_suffix=${out_suffix:-""}
 seed=${seed:-"123456"}
 
+source ~/miniconda3/etc/profile.d/conda.sh
+export PYTHONNOUSERSITE=1 
 conda activate ensemble
 
 python ${CODE_DIR}/run.py \

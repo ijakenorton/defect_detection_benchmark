@@ -6,4 +6,8 @@ export OUTPUT_DIR="$PROJECT_ROOT/output"
 export DATA_DIR="$PROJECT_ROOT/data"
 export MODELS_DIR="$PROJECT_ROOT/models"
 
-echo "--output=${OUTPUT_DIR}/${job_name}_out/${name}_%j.out"
+echo $SCRIPTS_DIR
+echo $OUTPUT_DIR
+echo $DATA_DIR
+echo $MODELS_DIR
+
