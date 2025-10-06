@@ -40,25 +40,71 @@ class Model(nn.Module):
     def forward(self, input_ids=None, labels=None):
         outputs = self.encoder(input_ids, attention_mask=input_ids.ne(1))[0]
         outputs = self.dropout(outputs)
-        
+
         logits = outputs  # Keep as raw logits
         prob = torch.sigmoid(logits)
-        
+
         if labels is not None:
             labels = labels.float()
-            
+
             # Use built-in weighted BCE
             pos_weight = torch.tensor(getattr(self.args, 'pos_weight', 1.0)).to(labels.device)
             loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                logits[:, 0], 
-                labels, 
+                logits[:, 0],
+                labels,
                 pos_weight=pos_weight
             )
-            
+
             return loss, prob
         else:
             return prob
-          
+
+
+class LineVulModel(nn.Module):
+    """Model wrapper for LineVul with 2-class classifier head"""
+    def __init__(self, encoder, config, tokenizer, args):
+        super(LineVulModel, self).__init__()
+        self.encoder = encoder
+        self.config = config
+        self.tokenizer = tokenizer
+        self.args = args
+
+        # Define dropout layer, dropout_probability is taken from args
+        self.dropout = nn.Dropout(args.dropout_probability)
+
+    def forward(self, input_ids=None, labels=None):
+        # Get logits from encoder (shape: [batch_size, 2])
+        outputs = self.encoder(input_ids, attention_mask=input_ids.ne(1))
+        logits = outputs.logits
+
+        # Apply dropout
+        logits = self.dropout(logits)
+
+        # Get probabilities using softmax for 2-class classification
+        probs = torch.softmax(logits, dim=-1)
+
+        # Extract vulnerability probability (class 1)
+        prob = probs[:, 1:2]  # Keep dimension for consistency with other models
+
+        if labels is not None:
+            labels = labels.float()
+
+            # Use cross-entropy loss with pos_weight
+            # Convert to class indices for CrossEntropyLoss
+            pos_weight = torch.tensor([1.0, getattr(self.args, 'pos_weight', 1.0)]).to(labels.device)
+
+            # Use binary cross-entropy on the vulnerability class logits
+            # This maintains compatibility with the pos_weight parameter
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                logits[:, 1],
+                labels,
+                pos_weight=torch.tensor(getattr(self.args, 'pos_weight', 1.0)).to(labels.device)
+            )
+
+            return loss, prob
+        else:
+            return prob
+
 from transformers import T5EncoderModel, T5Tokenizer
 
 class CodeT5Model(nn.Module):

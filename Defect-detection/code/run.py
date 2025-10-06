@@ -1399,7 +1399,12 @@ def main():
         args.config_name if args.config_name else args.model_name_or_path,
         cache_dir=args.cache_dir if args.cache_dir else None,
     )
-    config.num_labels = 1
+    # Set num_labels based on model type
+    # LineVul uses 2-class classifier, others use single output with sigmoid
+    if args.model_type == "linevul":
+        config.num_labels = 2
+    else:
+        config.num_labels = 1
     tokenizer = tokenizer_class.from_pretrained(
         args.tokenizer_name,
         do_lower_case=args.do_lower_case,
@@ -1422,16 +1427,20 @@ def main():
 
     if args.model_type == "codet5":
         # Use CodeT5 model
-        from model import CodeT5Model  
+        from model import CodeT5Model
         model = CodeT5Model(model, config, tokenizer, args)
     elif args.model_type == "codet5_full":
         # Use CodeT5 model
-        from model import CodeT5FullModel  
+        from model import CodeT5FullModel
         model = CodeT5FullModel(model, config, tokenizer, args)
     elif args.model_type == "natgen":
         # Use Natgen model
-        from model import DefectModel  
+        from model import DefectModel
         model = DefectModel(model, config, tokenizer, args)
+    elif args.model_type == "linevul":
+        # Use LineVul model with 2-class classifier
+        from model import LineVulModel
+        model = LineVulModel(model, config, tokenizer, args)
     else:
         model = Model(model, config, tokenizer, args)
 
