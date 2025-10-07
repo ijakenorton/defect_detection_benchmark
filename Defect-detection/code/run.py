@@ -684,9 +684,6 @@ def _test_debug(args, model, tokenizer):
     logger.info(f"  Min: {logits.min():.4f}, Max: {logits.max():.4f}")
     logger.info(f"  Mean: {logits.mean():.4f}, Std: {logits.std():.4f}")
     logger.info(f"  Label distribution: Positive={(labels==1).sum()}, Negative={(labels==0).sum()}")
-    
-    # For debugging, return early
-    return {"test_acc": 0.5, "precision": 0.5, "recall": 0.5, "f1": 0.5, "debug": "stopped_early"}
 
 def test(args, model, tokenizer, tb_writer=None):
     # Load test dataset
@@ -758,20 +755,25 @@ def test(args, model, tokenizer, tb_writer=None):
         }
     
     # Try different thresholds and find the best one
-    best_f1 = 0
+    best_f1 = -1
     best_threshold = 0.5
     best_metrics = None
     threshold_results = []
-    
+
     # Search for optimal threshold
     for threshold in np.arange(0.1, 0.9, 0.02):
         metrics = calculate_metrics_with_threshold(threshold, logits, labels)
         threshold_results.append(metrics)
-        
+
         if metrics["f1"] > best_f1:
             best_f1 = metrics["f1"]
             best_threshold = threshold
             best_metrics = metrics
+
+    # If no metrics were found (empty dataset or all F1=0), use default threshold
+    if best_metrics is None:
+        logger.warning("No optimal threshold found (all F1 scores were 0). Using default threshold 0.5")
+        best_metrics = calculate_metrics_with_threshold(0.5, logits, labels)
     
     # Also calculate with default 0.5 threshold
     default_metrics = calculate_metrics_with_threshold(0.5, logits, labels)

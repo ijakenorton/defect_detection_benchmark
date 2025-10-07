@@ -2,8 +2,11 @@
 
 setup_paths() {
     if [[ -z "$PROJECT_ROOT" ]]; then
-        SCRIPT_DIR=$(cd $(dirname "${BASH_SOURCE[0]}"); cd ../ && pwd)
-        export PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+        export PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+        if [[ -z "$PROJECT_ROOT" ]]; then
+            echo "Error: Not in a git repository. Cannot determine PROJECT_ROOT." >&2
+            return 1
+        fi
     fi
 
     export OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/output}"
