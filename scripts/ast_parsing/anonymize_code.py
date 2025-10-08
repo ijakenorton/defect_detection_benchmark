@@ -13,6 +13,9 @@ import sys
 from pathlib import Path
 from tree_sitter_language_pack import get_language, get_parser
 
+# Increase recursion limit for deeply nested ASTs
+sys.setrecursionlimit(10000)
+
 
 def collect_function_names(root_node, source_code):
     """Collect all function definition names and their byte ranges."""
@@ -161,6 +164,11 @@ def anonymize_code(source_code, remove_comments=True, anonymize_functions=True,
     # Parse the code
     tree = parser.parse(bytes(source_code, "utf8"))
     root_node = tree.root_node
+
+    # Check if parsing succeeded
+    if root_node is None:
+        # Parser failed, return original code
+        return source_code
 
     replacements = []
 
