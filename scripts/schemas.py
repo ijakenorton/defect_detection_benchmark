@@ -1,0 +1,122 @@
+"""Configuration schemas and validation for vulnerability detection experiments."""
+
+from dataclasses import dataclass
+from typing import List, Literal, Optional
+import json
+from pathlib import Path
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration."""
+    model_name: str
+    tokenizer_name: str
+    model_type: str
+
+
+@dataclass
+class DatasetConfig:
+    """Dataset configuration."""
+    name: str
+    size: Literal["small", "big"]
+    time_hours: int
+    gpu: str
+
+
+@dataclass
+class ExperimentConfig:
+    """Experiment configuration."""
+    models: List[str]
+    datasets: List[str]
+    seeds: List[int]
+    pos_weight: float = 1.0
+    epoch: int = 5
+    out_suffix: str = "splits"
+    mode: Literal["train", "test"] = "train"
+    block_size: int = 400
+    train_batch_size: int = 16
+    eval_batch_size: int = 16
+    learning_rate: float = 2e-5
+    max_grad_norm: float = 1.0
+    dropout_probability: float = 0.2
+    use_wandb: bool = True
+    wandb_project: str = "vulnerability-benchmark"
+
+
+class ConfigLoader:
+    """Loads and validates configuration files."""
+
+    def __init__(self, config_dir: Path):
+        self.config_dir = Path(config_dir)
+        self._models = None
+        self._datasets = None
+        self._dataset_groups = None
+
+    def load_models(self) -> dict[str, ModelConfig]:
+        """Load model configurations."""
+        if self._models is None:
+            with open(self.config_dir / "models.json") as f:
+                data = json.load(f)
+            self._models = {
+                name: ModelConfig(**config)
+                for name, config in data["models"].items()
+            }
+        return self._models
+
+    def load_datasets(self) -> dict[str, DatasetConfig]:
+        """Load dataset configurations."""
+        if self._datasets is None:
+            with open(self.config_dir / "datasets.json") as f:
+                data = json.load(f)
+            self._datasets = {
+                name: DatasetConfig(**config)
+                for name, config in data["datasets"].items()
+            }
+            self._dataset_groups = data["dataset_groups"]
+        return self._datasets
+
+    def get_dataset_group(self, group_name: str) -> List[str]:
+        """Get a list of datasets by group name."""
+        if self._dataset_groups is None:
+            self.load_datasets()
+        return self._dataset_groups.get(group_name, [])
+
+    def load_experiment(self, experiment_file: Path) -> ExperimentConfig:
+        """Load an experiment configuration."""
+        with open(experiment_file) as f:
+            data = json.load(f)
+
+        # Expand dataset groups
+        datasets = []
+        for ds in data.get("datasets", []):
+            if ds.startswith("group:"):
+                group_name = ds.replace("group:", "")
+                datasets.extend(self.get_dataset_group(group_name))
+            else:
+                datasets.append(ds)
+
+        data["datasets"] = datasets
+        return ExperimentConfig(**data)
+
+    def validate_experiment(self, experiment: ExperimentConfig) -> List[str]:
+        """Validate an experiment configuration and return any errors."""
+        errors = []
+
+        models = self.load_models()
+        datasets = self.load_datasets()
+
+        # Check all models exist
+        for model in experiment.models:
+            if model not in models:
+                errors.append(f"Unknown model: {model}")
+
+        # Check all datasets exist
+        for dataset in experiment.datasets:
+            if dataset not in datasets:
+                errors.append(f"Unknown dataset: {dataset}")
+
+        # Validate seeds
+        if not experiment.seeds:
+            errors.append("At least one seed is required")
+
+        return errors

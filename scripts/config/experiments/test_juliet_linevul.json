@@ -1,0 +1,9 @@
+{
+  "models": ["linevul"],
+  "datasets": ["juliet"],
+  "seeds": [123456],
+  "pos_weight": 1.0,
+  "epoch": 5,
+  "out_suffix": "splits",
+  "mode": "test"
+}

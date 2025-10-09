@@ -1,0 +1,9 @@
+{
+  "models": ["linevul"],
+  "datasets": ["group:small", "group:big"],
+  "seeds": [123456, 789012, 345678],
+  "pos_weight": 1.0,
+  "epoch": 5,
+  "out_suffix": "splits",
+  "mode": "train"
+}

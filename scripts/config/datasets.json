@@ -1,0 +1,63 @@
+{
+  "datasets": {
+    "icvul": {
+      "name": "icvul",
+      "size": "small",
+      "time_hours": 20,
+      "gpu": "aoraki_gpu"
+    },
+    "mvdsc_mixed": {
+      "name": "mvdsc_mixed",
+      "size": "small",
+      "time_hours": 20,
+      "gpu": "aoraki_gpu"
+    },
+    "devign": {
+      "name": "devign",
+      "size": "small",
+      "time_hours": 20,
+      "gpu": "aoraki_gpu"
+    },
+    "vuldeepecker": {
+      "name": "vuldeepecker",
+      "size": "small",
+      "time_hours": 20,
+      "gpu": "aoraki_gpu"
+    },
+    "cvefixes": {
+      "name": "cvefixes",
+      "size": "small",
+      "time_hours": 20,
+      "gpu": "aoraki_gpu"
+    },
+    "juliet": {
+      "name": "juliet",
+      "size": "small",
+      "time_hours": 20,
+      "gpu": "aoraki_gpu"
+    },
+    "reveal": {
+      "name": "reveal",
+      "size": "small",
+      "time_hours": 20,
+      "gpu": "aoraki_gpu"
+    },
+    "diversevul": {
+      "name": "diversevul",
+      "size": "big",
+      "time_hours": 50,
+      "gpu": "aoraki_gpu_H100"
+    },
+    "draper": {
+      "name": "draper",
+      "size": "big",
+      "time_hours": 50,
+      "gpu": "aoraki_gpu_H100"
+    }
+  },
+  "dataset_groups": {
+    "small": ["icvul", "mvdsc_mixed", "devign", "vuldeepecker", "cvefixes", "juliet", "reveal"],
+    "big": ["diversevul", "draper"],
+    "all": ["icvul", "mvdsc_mixed", "devign", "vuldeepecker", "cvefixes", "juliet", "reveal", "diversevul", "draper"]
+  }
+}

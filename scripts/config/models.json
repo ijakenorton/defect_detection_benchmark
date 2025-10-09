@@ -1,0 +1,34 @@
+{
+  "models": {
+    "codebert": {
+      "model_name": "microsoft/codebert-base",
+      "tokenizer_name": "microsoft/codebert-base",
+      "model_type": "codebert-base"
+    },
+    "graphcodebert": {
+      "model_name": "microsoft/graphcodebert-base",
+      "tokenizer_name": "microsoft/graphcodebert-base",
+      "model_type": "graphcodebert-base"
+    },
+    "codet5": {
+      "model_name": "Salesforce/codet5-base",
+      "tokenizer_name": "Salesforce/codet5-base",
+      "model_type": "codet5"
+    },
+    "codet5-full": {
+      "model_name": "Salesforce/codet5-base",
+      "tokenizer_name": "Salesforce/codet5-base",
+      "model_type": "codet5_full"
+    },
+    "natgen": {
+      "model_name": "../models/pretrained/natgen",
+      "tokenizer_name": "Salesforce/codet5-base",
+      "model_type": "natgen"
+    },
+    "linevul": {
+      "model_name": "../models/pretrained/linevul",
+      "tokenizer_name": "microsoft/codebert-base",
+      "model_type": "linevul"
+    }
+  }
+}
