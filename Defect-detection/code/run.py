@@ -423,15 +423,22 @@ def train(args, train_dataset, model, tokenizer, tb_writer=None):
                             logger.info("  " + "*" * 20)
 
                             checkpoint_prefix = "checkpoint-best-acc"
-                            output_dir = os.path.join(args.output_dir, "{}".format(checkpoint_prefix))
-                            if not os.path.exists(output_dir):
-                                os.makedirs(output_dir)
+                            checkpoint_dir = os.path.join(args.output_dir, "{}".format(checkpoint_prefix))
+                            if not os.path.exists(checkpoint_dir):
+                                os.makedirs(checkpoint_dir)
                             model_to_save = (
                                 model.module if hasattr(model, "module") else model
                             )
-                            output_dir = os.path.join(output_dir, "{}".format("model.bin"))
-                            torch.save(model_to_save.state_dict(), output_dir)
-                            logger.info("Saving model checkpoint to %s", output_dir)
+
+                            # Save model weights
+                            model_path = os.path.join(checkpoint_dir, "model.bin")
+                            torch.save(model_to_save.state_dict(), model_path)
+                            logger.info("Saving model checkpoint to %s", model_path)
+
+                            # Save config.json
+                            config_path = os.path.join(checkpoint_dir, "config.json")
+                            config.save_pretrained(checkpoint_dir)
+                            logger.info("Saving model config to %s", config_path)
 
         # END OF STEP LOOP - Log epoch metrics to wandb
         if args.use_wandb and args.local_rank in [-1, 0]:
@@ -1561,4 +1568,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from error_logger import error_logging_context, get_batch_id_from_env
+
+    # Get batch ID from environment (set by runner.py or use timestamp)
+    batch_id = get_batch_id_from_env()
+
+    # Run main with error logging
+    with error_logging_context(batch_id=batch_id):
+        main()

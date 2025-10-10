@@ -114,12 +114,13 @@ class CodeT5Model(nn.Module):
         self.config = config
         self.tokenizer = tokenizer
         self.args = args
-        
+
         self.dropout = nn.Dropout(getattr(args, 'dropout_probability', 0.1))
-        
-        # Classification head - adjust input size for CodeT5
+
+        # Respect config.num_labels - default to 1 for backwards compatibility
+        num_labels = getattr(config, 'num_labels', 1)
         # CodeT5-base has 768 hidden size, same as CodeBERT
-        self.classifier = nn.Linear(768, 1)
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
         
     def forward(self, input_ids=None, labels=None):
         # Use only the encoder part of CodeT5
@@ -161,10 +162,11 @@ class CodeT5FullModel(nn.Module):
         self.config = config
         self.tokenizer = tokenizer
         self.args = args
-        
+
         self.dropout = nn.Dropout(getattr(args, 'dropout_probability', 0.1))
-        # Use same classifier structure as NatGen: 2 classes, then extract binary
-        self.classifier = nn.Linear(config.hidden_size, 2)
+        # Respect config.num_labels - default to 2 for backwards compatibility
+        num_labels = getattr(config, 'num_labels', 2)
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
         
     def get_t5_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
@@ -316,7 +318,9 @@ class DefectModel(nn.Module):
         self.encoder = encoder
         self.config = config
         self.tokenizer = tokenizer
-        self.classifier = nn.Linear(config.hidden_size, 2)
+        # Respect config.num_labels - default to 2 for backwards compatibility
+        num_labels = getattr(config, 'num_labels', 2)
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.args = args
 
     def get_t5_vec(self, source_ids):
