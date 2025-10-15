@@ -12,9 +12,14 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set, Tuple
 
 from schemas import ConfigLoader, ExperimentConfig, ModelConfig, DatasetConfig
+from find_missing_experiments import (
+    get_expected_experiments,
+    get_actual_experiments,
+    find_missing_experiments
+)
 
 
 class ExperimentRunner:
@@ -61,9 +66,11 @@ class ExperimentRunner:
         return env
 
     def _build_python_command(self, model: ModelConfig, dataset: DatasetConfig,
-                             experiment: ExperimentConfig, seed: int) -> List[str]:
+                             experiment: ExperimentConfig, seed: int, model_config_name: str) -> List[str]:
         """Build the Python command to run."""
-        output_dir = self.models_dir / model.model_name.split("/")[-1] / f"{dataset.name}_{experiment.out_suffix}_seed{seed}"
+        # Use model_config_name (e.g., "codet5" or "codet5-full") to avoid collisions
+        # when multiple configs share the same HuggingFace model
+        output_dir = self.models_dir / model_config_name / f"{dataset.name}_{experiment.out_suffix}_seed{seed}"
 
         cmd = [
             "python", str(self.code_dir / "run.py"),
@@ -134,9 +141,9 @@ class ExperimentRunner:
         return sbatch_args
 
     def _build_sbatch_wrap_command(self, model: ModelConfig, dataset: DatasetConfig,
-                                   experiment: ExperimentConfig, seed: int) -> str:
+                                   experiment: ExperimentConfig, seed: int, model_config_name: str) -> str:
         """Build a complete sbatch --wrap command for direct Python execution."""
-        python_cmd = self._build_python_command(model, dataset, experiment, seed)
+        python_cmd = self._build_python_command(model, dataset, experiment, seed, model_config_name)
 
         # Build the full command with conda activation
         conda_activate = "source ~/miniconda3/etc/profile.d/conda.sh"
@@ -151,7 +158,8 @@ class ExperimentRunner:
     def run_experiment(self, experiment: ExperimentConfig,
                       use_sbatch: bool = True,
                       legacy_mode: bool = False,
-                      dry_run: bool = False) -> None:
+                      dry_run: bool = False,
+                      fix_missing: bool = False) -> None:
         """Run an experiment.
 
         Args:
@@ -160,6 +168,7 @@ class ExperimentRunner:
             legacy_mode: If True (with use_sbatch), use old bash scripts with env vars.
                         If False (with use_sbatch), use sbatch --wrap with direct Python calls.
             dry_run: If True, print commands without executing
+            fix_missing: If True, only run experiments that are missing from results directory
         """
         # Validate
         errors = self.config_loader.validate_experiment(experiment)
@@ -173,9 +182,49 @@ class ExperimentRunner:
         models = self.config_loader.load_models()
         datasets = self.config_loader.load_datasets()
 
+        # Determine what to run
+        if fix_missing:
+            # Load models config for directory mapping
+            from find_missing_experiments import load_config_files
+            models_config, _ = load_config_files(self.config_dir)
+
+            # Convert ExperimentConfig to dict format for compatibility
+            exp_dict = {
+                "models": experiment.models,
+                "datasets": experiment.datasets,
+                "seeds": experiment.seeds,
+                "out_suffix": experiment.out_suffix
+            }
+
+            # Get expected and actual experiments
+            expected = get_expected_experiments(exp_dict)
+            print(f"Expected {len(expected)} experiment combinations")
+
+            print(f"Scanning results directory: {self.models_dir}")
+            actual = get_actual_experiments(self.models_dir, models_config, experiment.out_suffix)
+            print(f"Found {len(actual)} completed experiments")
+
+            # Find missing
+            missing = find_missing_experiments(expected, actual)
+
+            if not missing:
+                print("\n✓ All experiments already completed!")
+                return
+
+            print(f"\nFound {len(missing)} missing experiments")
+            runs_to_execute = missing
+        else:
+            # Generate Cartesian product
+            runs_to_execute = [
+                (model_name, dataset_name, seed)
+                for model_name in experiment.models
+                for dataset_name in experiment.datasets
+                for seed in experiment.seeds
+            ]
+            print(f"Running experiment with {len(experiment.models)} model(s), "
+                  f"{len(experiment.datasets)} dataset(s), {len(experiment.seeds)} seed(s)")
+
         mode_desc = "legacy (bash)" if legacy_mode else "direct (Python)"
-        print(f"Running experiment with {len(experiment.models)} model(s), "
-              f"{len(experiment.datasets)} dataset(s), {len(experiment.seeds)} seed(s)")
         if use_sbatch:
             print(f"Execution mode: sbatch [{mode_desc}]")
         else:
@@ -186,60 +235,58 @@ class ExperimentRunner:
 
         # Execute jobs
         job_count = 0
-        for model_name in experiment.models:
+        for model_name, dataset_name, seed in runs_to_execute:
             model = models[model_name]
-            for dataset_name in experiment.datasets:
-                dataset = datasets[dataset_name]
-                for seed in experiment.seeds:
-                    job_count += 1
+            dataset = datasets[dataset_name]
+            job_count += 1
 
-                    if use_sbatch:
-                        if legacy_mode:
-                            # Legacy mode: use bash scripts with env vars
-                            env = self._setup_env(model, dataset, experiment, seed)
-                            script_name = f"train_split.sh" if experiment.mode == "train" else "test_split.sh"
-                            script_path = self.scripts_dir / script_name
+            if use_sbatch:
+                if legacy_mode:
+                    # Legacy mode: use bash scripts with env vars
+                    env = self._setup_env(model, dataset, experiment, seed)
+                    script_name = f"train_split.sh" if experiment.mode == "train" else "test_split.sh"
+                    script_path = self.scripts_dir / script_name
 
-                            sbatch_cmd = self._build_sbatch_command(dataset, model_name, experiment, seed, legacy_mode=True)
-                            sbatch_cmd.append(str(script_path))
+                    sbatch_cmd = self._build_sbatch_command(dataset, model_name, experiment, seed, legacy_mode=True)
+                    sbatch_cmd.append(str(script_path))
 
-                            if dry_run:
-                                print(f"Job {job_count}: {model_name} × {dataset_name} × seed={seed}")
-                                print(f"  Command: {' '.join(sbatch_cmd)}")
-                                print(f"  Script: {script_path}")
-                                print(f"  Env vars: model_name={model.model_name}, dataset_name={dataset_name}, seed={seed}")
-                                print()
-                            else:
-                                subprocess.run(sbatch_cmd, env=env, check=True)
-                        else:
-                            # Direct mode: use sbatch --wrap with Python command
-                            sbatch_cmd = self._build_sbatch_command(dataset, model_name, experiment, seed, legacy_mode=False)
-                            wrap_cmd = self._build_sbatch_wrap_command(model, dataset, experiment, seed)
-
-                            sbatch_cmd.append("--wrap")
-                            sbatch_cmd.append(wrap_cmd)
-
-                            if dry_run:
-                                print(f"Job {job_count}: {model_name} × {dataset_name} × seed={seed}")
-                                print(f"  sbatch: {' '.join(sbatch_cmd[:-2])}")  # Print sbatch args
-                                print(f"  --wrap: {wrap_cmd}")
-                                print()
-                            else:
-                                subprocess.run(sbatch_cmd, check=True)
+                    if dry_run:
+                        print(f"Job {job_count}: {model_name} × {dataset_name} × seed={seed}")
+                        print(f"  Command: {' '.join(sbatch_cmd)}")
+                        print(f"  Script: {script_path}")
+                        print(f"  Env vars: model_name={model.model_name}, dataset_name={dataset_name}, seed={seed}")
+                        print()
                     else:
-                        # Run directly with Python (no sbatch)
-                        env = self._setup_env(model, dataset, experiment, seed)
-                        python_cmd = self._build_python_command(model, dataset, experiment, seed)
+                        subprocess.run(sbatch_cmd, env=env, check=True)
+                else:
+                    # Direct mode: use sbatch --wrap with Python command
+                    sbatch_cmd = self._build_sbatch_command(dataset, model_name, experiment, seed, legacy_mode=False)
+                    wrap_cmd = self._build_sbatch_wrap_command(model, dataset, experiment, seed, model_name)
 
-                        if dry_run:
-                            print(f"Job {job_count}: {model_name} × {dataset_name} × seed={seed}")
-                            print(f"  Command: {' '.join(python_cmd)}")
-                            print()
-                        else:
-                            # Activate conda environment and run
-                            conda_activate = "source ~/miniconda3/etc/profile.d/conda.sh && conda activate ensemble"
-                            full_cmd = f"{conda_activate} && {' '.join(python_cmd)}"
-                            subprocess.run(full_cmd, shell=True, env=env, check=True)
+                    sbatch_cmd.append("--wrap")
+                    sbatch_cmd.append(wrap_cmd)
+
+                    if dry_run:
+                        print(f"Job {job_count}: {model_name} × {dataset_name} × seed={seed}")
+                        print(f"  sbatch: {' '.join(sbatch_cmd[:-2])}")  # Print sbatch args
+                        print(f"  --wrap: {wrap_cmd}")
+                        print()
+                    else:
+                        subprocess.run(sbatch_cmd, check=True)
+            else:
+                # Run directly with Python (no sbatch)
+                env = self._setup_env(model, dataset, experiment, seed)
+                python_cmd = self._build_python_command(model, dataset, experiment, seed, model_name)
+
+                if dry_run:
+                    print(f"Job {job_count}: {model_name} × {dataset_name} × seed={seed}")
+                    print(f"  Command: {' '.join(python_cmd)}")
+                    print()
+                else:
+                    # Activate conda environment and run
+                    conda_activate = "source ~/miniconda3/etc/profile.d/conda.sh && conda activate ensemble"
+                    full_cmd = f"{conda_activate} && {' '.join(python_cmd)}"
+                    subprocess.run(full_cmd, shell=True, env=env, check=True)
 
         if not dry_run:
             print(f"Submitted {job_count} job(s)")
@@ -272,6 +319,7 @@ Examples:
   python runner.py train_linevul_all                    # Direct Python via sbatch
   python runner.py train_linevul_all --legacy           # Legacy bash scripts via sbatch
   python runner.py train_linevul_all --dry-run          # Preview commands
+  python runner.py train_linevul_all --fix-missing      # Only run missing experiments
   python runner.py train_linevul_all --no-sbatch        # Run locally
         """
     )
@@ -282,6 +330,8 @@ Examples:
                        help="Use legacy bash scripts with sbatch (instead of direct Python)")
     parser.add_argument("--dry-run", action="store_true",
                        help="Print commands without executing")
+    parser.add_argument("--fix-missing", action="store_true",
+                       help="Only run experiments that are missing from results directory")
     parser.add_argument("--list-models", action="store_true",
                        help="List available models")
     parser.add_argument("--list-datasets", action="store_true",
@@ -329,7 +379,8 @@ Examples:
         experiment,
         use_sbatch=not args.no_sbatch,
         legacy_mode=args.legacy,
-        dry_run=args.dry_run
+        dry_run=args.dry_run,
+        fix_missing=args.fix_missing
     )
 
 

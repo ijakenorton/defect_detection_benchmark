@@ -55,8 +55,15 @@ class ConfigLoader:
     def load_models(self) -> dict[str, ModelConfig]:
         """Load model configurations."""
         if self._models is None:
-            with open(self.config_dir / "models.json") as f:
-                data = json.load(f)
+            models_file = self.config_dir / "models.json"
+            try:
+                with open(models_file) as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise json.JSONDecodeError(
+                    f"Error parsing {models_file}: {e.msg}",
+                    e.doc, e.pos
+                ) from e
             self._models = {
                 name: ModelConfig(**config)
                 for name, config in data["models"].items()
@@ -66,14 +73,47 @@ class ConfigLoader:
     def load_datasets(self) -> dict[str, DatasetConfig]:
         """Load dataset configurations."""
         if self._datasets is None:
-            with open(self.config_dir / "datasets.json") as f:
-                data = json.load(f)
+            datasets_file = self.config_dir / "datasets.json"
+            try:
+                with open(datasets_file) as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise json.JSONDecodeError(
+                    f"Error parsing {datasets_file}: {e.msg}",
+                    e.doc, e.pos
+                ) from e
             self._datasets = {
                 name: DatasetConfig(**config)
                 for name, config in data["datasets"].items()
             }
-            self._dataset_groups = data["dataset_groups"]
+
+            # Auto-generate dataset groups from "size" field if not provided
+            if "dataset_groups" in data:
+                self._dataset_groups = data["dataset_groups"]
+            else:
+                self._dataset_groups = self._generate_dataset_groups()
         return self._datasets
+
+    def _generate_dataset_groups(self) -> dict[str, List[str]]:
+        """Auto-generate dataset groups based on the 'size' field."""
+        groups = {
+            "small": [],
+            "big": [],
+            "all": []
+        }
+
+        for name, config in self._datasets.items():
+            groups["all"].append(name)
+            if config.size == "small":
+                groups["small"].append(name)
+            elif config.size == "big":
+                groups["big"].append(name)
+
+        # Sort for consistency
+        for group in groups.values():
+            group.sort()
+
+        return groups
 
     def get_dataset_group(self, group_name: str) -> List[str]:
         """Get a list of datasets by group name."""
@@ -83,8 +123,14 @@ class ConfigLoader:
 
     def load_experiment(self, experiment_file: Path) -> ExperimentConfig:
         """Load an experiment configuration."""
-        with open(experiment_file) as f:
-            data = json.load(f)
+        try:
+            with open(experiment_file) as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise json.JSONDecodeError(
+                f"Error parsing {experiment_file}: {e.msg}",
+                e.doc, e.pos
+            ) from e
 
         # Expand dataset groups
         datasets = []
@@ -96,6 +142,8 @@ class ConfigLoader:
                 datasets.append(ds)
 
         data["datasets"] = datasets
+        # Remove metadata fields that aren't part of the dataclass
+        data.pop("_metadata", None)
         return ExperimentConfig(**data)
 
     def validate_experiment(self, experiment: ExperimentConfig) -> List[str]:

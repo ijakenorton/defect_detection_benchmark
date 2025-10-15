@@ -1,0 +1,49 @@
+{
+  "models": [
+    "codebert",
+    "graphcodebert",
+    "codet5",
+    "codet5-full",
+    "natgen",
+    "linevul"
+  ],
+  "datasets": [
+    "icvul",
+    "mvdsc_mixed",
+    "devign",
+    "dedup-devign",
+    "vuldeepecker",
+    "cvefixes",
+    "juliet",
+    "dedup-juliet",
+    "dedup-bigvul",
+    "reveal",
+    "diversevul",
+    "draper",
+    "primevul"
+  ],
+  "seeds": [
+    123456,
+    789012,
+    345678
+  ],
+  "pos_weight": 1.0,
+  "epoch": 5,
+  "out_suffix": "splits",
+  "mode": "train",
+  "block_size": 400,
+  "train_batch_size": 16,
+  "eval_batch_size": 16,
+  "learning_rate": 2e-05,
+  "max_grad_norm": 1.0,
+  "dropout_probability": 0.2,
+  "use_wandb": true,
+  "wandb_project": "vulnerability-benchmark",
+  "_metadata": {
+    "generated_by": "generate_train_all_config.py",
+    "total_models": 6,
+    "total_datasets": 13,
+    "total_seeds": 3,
+    "total_combinations": 234
+  }
+}

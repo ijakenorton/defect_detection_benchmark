@@ -10,24 +10,28 @@ This is designed to be forked and extended by the user. It is a base to work fro
 
 All datasets are now available on Hugging Face and will be automatically downloaded:
 
+- **BigVul (dedup)** - Deduplicated version of BigVul dataset from Croft et al. 2023
 - **CVEFixes** - Real-world vulnerability fixes from CVE-linked GitHub commits
-- **Devign** - Qemu and ffmpeg functions with errors, difficult real-world code
+- **Devign (dedup)** - Deduplicated version of Devign (Qemu and ffmpeg functions with errors)
 - **DiverseVul** - Real-world vulnerability data from git commits, C/C++
 - **Draper** - Large aggregation of C/C++ real-world code from GitHub scraping
 - **ICVul** - Collection of vulnerability contributing commits from CVEs linked to GitHub commits
-- **Juliet** - NIST's synthetic test suite for C/C++ vulnerabilities, very comprehensive but synthetic
+- **Juliet (dedup)** - Deduplicated version of NIST's synthetic test suite for C/C++ vulnerabilities
 - **MVDSC Mixed** - Mixed formats, some in AST/Graph form, includes Juliet samples
+- **PrimeVul** - Vulnerability detection dataset
 - **Reveal** - Cleaned real-world dataset from Chrome and Debian, JSON format
 - **VulDeepecker** - From SARD dataset, C/C++, mix of synthetic and real vulnerabilities
 
-The datasets range from highly synthetic (Juliet) to completely real-world (CVEFixes, DiverseVul) with various complexity levels.
+The datasets range from highly synthetic (Juliet) to completely real-world (CVEFixes, DiverseVul) with various complexity levels. The deduplicated datasets (dedup-bigvul, dedup-devign, dedup-juliet) are based on the data quality work by Croft et al. (2023) which removes duplicates and improves dataset quality.
 
 ## Models
 
 Currently supports these pre-trained models:
-- **CodeBERT** - Microsoft's code-understanding model
-- **CodeT5** - Salesforce's text-to-code generation model
-- **GraphCodeBERT** - Microsoft's graph-based code model
+- **CodeBERT** - Microsoft's code-understanding model (BERT-based encoder)
+- **CodeT5** - Salesforce's encoder-only variant (T5EncoderModel)
+- **CodeT5-Full** - Salesforce's full encoder-decoder model (T5ForConditionalGeneration)
+- **GraphCodeBERT** - Microsoft's graph-based code model with data flow
+- **LineVul** - CodeBERT-based model specifically designed for line-level vulnerability detection
 - **NatGen** - Natural language to code generation model
 
 # Usage
@@ -37,9 +41,9 @@ Currently supports these pre-trained models:
 git clone https://github.com/ijakenorton/defect_detection_benchmark
 cd defect_detection_benchmark
 
-# Setup environment. Currently using conda.
+# Setup environment
 conda env create -f environment.yml
-# There may need to be some messing around with the environment depending on versions.
+conda activate ensemble
 # The environment has been tested on Rocky Linux 9.2 (Blue Onyx) & Pop-os
 
 # Download all datasets (now from Hugging Face!)
@@ -47,15 +51,26 @@ cd data
 ./download.sh
 cd ..
 
-# Train models on all datasets with multiple seeds
+# Train models using the Python-based configuration system
 cd scripts
-./train_all_models_datasets_std.sh
 
-# Or train individual models/datasets
-./train.sh <model_config> <dataset> <seed>
+# Train all models on all datasets with multiple seeds
+python runner.py config/experiments/train_all.json
+
+# Only run missing experiments (automatically detects what's already completed)
+python runner.py config/experiments/train_all.json --fix-missing
+
+# Preview what would be run without executing
+python runner.py config/experiments/train_all.json --dry-run
+
+# Run locally without SLURM/sbatch
+python runner.py config/experiments/train_all.json --no-sbatch
+
+# Find what experiments are missing
+python find_missing_experiments.py --config config/experiments/train_all.json
 
 # Aggregate results across all experiments
-python aggregate_results.py --results_dir ../models --output results_summary.csv
+python aggregate_results_threshold.py --results_dir ../models --output results_summary.csv
 ```
 
 ## What's Actually Implemented
@@ -64,10 +79,12 @@ This framework is now pretty mature and includes:
 
 - **Automated dataset downloading** from Hugging Face
 - **Multi-seed training** for robust statistical results
-- **Model configuration system** - easy to add new models or tweak hyperparameters
+- **JSON-based configuration system** - centralized configs for models, datasets, and experiments
+- **Smart experiment tracking** - automatically detects completed experiments and runs only what's missing
 - **Batch job support** - works with SLURM for cluster training
 - **Results aggregation** - automatically combines results across seeds and experiments
 - **Flexible training scripts** - train individual models/datasets or run the full suite
+- **Legacy and new directory support** - handles both old bash-based and new Python-based experiment outputs
 
 ## Project Structure
 
@@ -76,25 +93,78 @@ This framework is now pretty mature and includes:
 │   ├── download.sh         # Downloads all datasets from Hugging Face
 │   └── */                  # Individual dataset processing scripts
 ├── scripts/                # Training and evaluation scripts
-│   ├── train_all_models_datasets_std.sh  # Train everything
-│   ├── train.sh           # Train individual experiments
-│   ├── aggregate_results.py  # Combine results across seeds
-│   └── model_configs/     # Model hyperparameter configs
-├── models/                 # Pre-trained models and outputs
+│   ├── runner.py          # Main experiment runner (replaces bash scripts)
+│   ├── schemas.py         # Configuration schema definitions and validation
+│   ├── find_missing_experiments.py  # Detect which experiments still need to be run
+│   ├── aggregate_results_threshold.py  # Combine results across seeds
+│   ├── config/            # Configuration files
+│   │   ├── models.json    # Model definitions (CodeBERT, CodeT5, etc.)
+│   │   ├── datasets.json  # Dataset configurations
+│   │   └── experiments/   # Experiment configurations
+│   │       └── train_all.json  # Train all models on all datasets
+│   └── *.sh               # Legacy bash scripts (being phased out)
+├── models/                 # Pre-trained models and experiment outputs
+│   ├── codebert/          # CodeBERT experiment results
+│   ├── codet5/            # CodeT5 (encoder-only) results
+│   ├── codet5-full/       # CodeT5 (full encoder-decoder) results
+│   └── */                 # Other model results
 └── Defect-detection/      # Core training/inference code
 ```
 
 ## Advanced Usage
 
+### Configuration System
+
+The framework uses a centralized JSON-based configuration system:
+
+- **`config/models.json`** - Define models with their HuggingFace paths and types
+- **`config/datasets.json`** - Dataset configurations with paths and metadata
+- **`config/experiments/*.json`** - Experiment definitions (model/dataset/seed combinations)
+
+Datasets are automatically grouped by size (small/big) based on their `size` field, eliminating manual group management.
+
+### Custom Experiments
+
 ```bash
-# Train specific model on specific dataset with custom seed
-./scripts/train.sh ./scripts/model_configs/codebert.sh devign 42
+# Create a custom experiment config
+cat > config/experiments/my_experiment.json <<EOF
+{
+  "models": ["codebert", "codet5"],
+  "datasets": ["juliet", "devign"],
+  "seeds": [123456, 789012],
+  "pos_weight": 1.0,
+  "epoch": 5,
+  "out_suffix": "splits",
+  "mode": "train"
+}
+EOF
 
-# Test trained models
-./scripts/test_all_models_datasets_std.sh
+# Run your custom experiment
+python runner.py config/experiments/my_experiment.json
 
-# Get detailed results breakdown
-python scripts/aggregate_results.py --results_dir models --output detailed_results.csv
+# Or just run what's missing
+python runner.py config/experiments/my_experiment.json --fix-missing
+```
+
+### Working with Results
+
+```bash
+# Check experiment completion status
+python find_missing_experiments.py --config config/experiments/train_all.json
+
+# Aggregate all results with threshold optimization
+python aggregate_results_threshold.py --results_dir ../models --output results_summary.csv
+
+# Test trained models (legacy bash script)
+./test_all_models_datasets_std.sh
+```
+
+### Adding New Models or Datasets
+
+1. **Add a new model**: Edit `config/models.json` and add your model configuration
+2. **Add a new dataset**: Edit `config/datasets.json` with dataset path and metadata
+3. **Create experiment**: Create a new experiment config in `config/experiments/`
+4. **Run**: `python runner.py config/experiments/your_experiment.json`
 ```
 
 # Hardware Requirements
