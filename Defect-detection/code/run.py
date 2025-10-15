@@ -436,9 +436,11 @@ def train(args, train_dataset, model, tokenizer, tb_writer=None):
                             logger.info("Saving model checkpoint to %s", model_path)
 
                             # Save config.json
-                            config_path = os.path.join(checkpoint_dir, "config.json")
-                            config.save_pretrained(checkpoint_dir)
-                            logger.info("Saving model config to %s", config_path)
+                            # Get config from the model (wrapped models store it as model.config)
+                            if hasattr(model_to_save, 'config'):
+                                config_path = os.path.join(checkpoint_dir, "config.json")
+                                model_to_save.config.save_pretrained(checkpoint_dir)
+                                logger.info("Saving model config to %s", config_path)
 
         # END OF STEP LOOP - Log epoch metrics to wandb
         if args.use_wandb and args.local_rank in [-1, 0]:
