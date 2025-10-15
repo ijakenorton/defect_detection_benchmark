@@ -1,0 +1,9 @@
+{
+  "models": ["codet5"],
+  "datasets": ["primevul"],
+  "seeds": [123456],
+  "pos_weight": 1.0,
+  "epoch": 1,
+  "out_suffix": "splits",
+  "mode": "test"
+}

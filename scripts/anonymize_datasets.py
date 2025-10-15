@@ -2,8 +2,11 @@
 """
 Anonymize all datasets in the data directory.
 Processes each dataset's full_dataset.jsonl file and creates an anonymized version.
+
+Now uses the config system to automatically discover all datasets.
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -14,28 +17,22 @@ from multiprocessing import Pool, cpu_count
 sys.path.insert(0, str(Path(__file__).parent / "ast_parsing"))
 
 from anonymize_code import anonymize_code
+from schemas import ConfigLoader
 
 
-DATASETS = [
-    "icvul",
-    "mvdsc_mixed",
-    "devign",
-    "vuldeepecker",
-    "cvefixes",
-    "juliet",
-    "reveal"
-]
-
+# Default paths
 DATA_DIR = Path(__file__).parent.parent / "data"
+CONFIG_DIR = Path(__file__).parent / "config"
 
 
-def anonymize_dataset(dataset_name, code_field="func"):
+def anonymize_dataset(dataset_name, code_field="func", position=0):
     """
     Anonymize a single dataset.
 
     Args:
         dataset_name: Name of the dataset (e.g., "icvul")
         code_field: Field name containing the code (default: "func")
+        position: Progress bar position for parallel processing
 
     Returns:
         Tuple of (dataset_name, success, anonymized_count, error_count, error_messages, output_file)
@@ -51,7 +48,7 @@ def anonymize_dataset(dataset_name, code_field="func"):
     error_messages = []
 
     with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
-        for line_num, line in enumerate(tqdm(infile, desc=f"{dataset_name}", position=DATASETS.index(dataset_name)), 1):
+        for line_num, line in enumerate(tqdm(infile, desc=f"{dataset_name}", position=position), 1):
             try:
                 data = json.loads(line.strip())
 
@@ -96,12 +93,29 @@ def anonymize_dataset(dataset_name, code_field="func"):
     return (dataset_name, True, anonymized_count, error_count, error_messages, str(output_file))
 
 
-def anonymize_dataset_wrapper(dataset_name):
+def anonymize_dataset_wrapper(args):
     """Wrapper for parallel processing."""
-    return anonymize_dataset(dataset_name)
+    dataset_name, position = args
+    return anonymize_dataset(dataset_name, position=position)
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Anonymize datasets using Tree-sitter",
+        epilog="By default, processes all datasets from config/datasets.json"
+    )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        help="Specific datasets to anonymize (default: all from config)"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        help="Number of parallel workers (default: CPU count)"
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("Dataset Anonymization Script")
     print("=" * 60)
@@ -111,13 +125,31 @@ def main():
         print(f"❌ Data directory not found: {DATA_DIR}")
         return 1
 
-    # Use min of CPU count and number of datasets
-    num_workers = min(cpu_count(), len(DATASETS))
-    print(f"Processing {len(DATASETS)} datasets in parallel with {num_workers} workers\n")
+    # Load datasets from config or use provided list
+    if args.datasets:
+        datasets = args.datasets
+        print(f"Using specified datasets: {', '.join(datasets)}")
+    else:
+        try:
+            config_loader = ConfigLoader(CONFIG_DIR)
+            datasets_config = config_loader.load_datasets()
+            datasets = list(datasets_config.keys())
+            print(f"Loaded {len(datasets)} datasets from config/datasets.json")
+        except Exception as e:
+            print(f"Warning: Could not load datasets from config: {e}")
+            print("Falling back to hardcoded list")
+            datasets = ["icvul", "mvdsc_mixed", "devign", "vuldeepecker", "cvefixes", "juliet", "reveal"]
 
-    # Process datasets in parallel
+    print(f"Datasets to process: {', '.join(datasets)}\n")
+
+    # Determine number of workers
+    num_workers = args.workers if args.workers else min(cpu_count(), len(datasets))
+    print(f"Processing {len(datasets)} datasets in parallel with {num_workers} workers\n")
+
+    # Process datasets in parallel (with positions for progress bars)
+    dataset_args = [(dataset, i) for i, dataset in enumerate(datasets)]
     with Pool(num_workers) as pool:
-        results = pool.map(anonymize_dataset_wrapper, DATASETS)
+        results = pool.map(anonymize_dataset_wrapper, dataset_args)
 
     # Print results summary
     print("\n" + "=" * 60)
@@ -157,7 +189,7 @@ def main():
         print()
 
     print("=" * 60)
-    print(f"TOTAL: {successful}/{len(DATASETS)} datasets processed successfully")
+    print(f"TOTAL: {successful}/{len(datasets)} datasets processed successfully")
     print(f"       {total_anonymized} entries anonymized")
     print(f"       {total_errors} entries skipped due to errors")
     print("=" * 60)

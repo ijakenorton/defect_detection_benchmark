@@ -1,0 +1,37 @@
+{
+  "models": [
+    "codebert",
+    "codet5",
+    "codet5-full",
+    "graphcodebert",
+    "linevul",
+    "natgen"
+  ],
+  "datasets": [
+    "icvul",
+    "mvdsc_mixed",
+    "devign",
+    "vuldeepecker",
+    "cvefixes",
+    "juliet",
+    "reveal",
+    "draper",
+    "diversevul",
+    "primevul",
+    "dedup-bigvul",
+    "dedup-devign",
+    "dedup-juliet"
+  ],
+  "seeds": [
+    123456
+  ],
+  "pos_weight": 1.0,
+  "epoch": 1,
+  "out_suffix": "smoke_test",
+  "mode": "train",
+  "_metadata": {
+    "description": "Smoke test configuration - 1 epoch training to verify all models and datasets work",
+    "purpose": "Quick validation that models load and datasets parse correctly",
+    "expected_duration": "5-15 minutes per combination on GPU"
+  }
+}
