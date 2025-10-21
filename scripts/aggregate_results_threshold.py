@@ -54,7 +54,9 @@ def extract_results_from_directory(results_dir):
                 if '_pos' in dataset_part:
                     dataset_parts = dataset_part.split('_pos')
                     dataset = dataset_parts[0]
-                    pos_weight = float(dataset_parts[1])
+                    pos_parts = dataset_parts[1].split('_')
+
+                    pos_weight = float(pos_parts[0])
                 else:
                     dataset = dataset_part
                     pos_weight = 1.0
@@ -259,30 +261,7 @@ def format_improvement_table(df):
 
     return imp_df
 
-def main():
-    parser = argparse.ArgumentParser(description='Aggregate experiment results across seeds')
-    parser.add_argument('--results_dir', default='../models', help='Directory containing model results')
-    parser.add_argument('--output', default='results_summary.csv', help='Output CSV file')
-    parser.add_argument('--min_seeds', default=3, type=int, help='Minimum seeds required for inclusion')
-    parser.add_argument('--json', action='store_true', help='Also output results as JSON')
-    parser.add_argument('--missing-output', default='missing_results.json', help='Output JSON file for missing results')
-
-    args = parser.parse_args()
-
-    print(f"Scanning results directory: {args.results_dir}")
-    all_results, missing_results = extract_results_from_directory(args.results_dir)
-
-    if not all_results:
-        print("No results found!")
-        return
-
-    print(f"\nFound {len(all_results)} individual experiment results")
-
-    # Aggregate results
-    aggregated_df = aggregate_results(all_results)
-
-    # Filter by minimum seeds
-    aggregated_df = aggregated_df[aggregated_df['n_seeds'] >= args.min_seeds]
+def report_stats(aggregated_df, args):
 
     print(f"Aggregated into {len(aggregated_df)} model/dataset combinations")
 
@@ -354,20 +333,37 @@ def main():
                     print(f"Median % improvement:   {pct_improvements.median():+.1f}%")
                     print(f"Best % improvement:     {pct_improvements.max():+.1f}%")
 
+def main():
+    parser = argparse.ArgumentParser(description='Aggregate experiment results across seeds')
+    parser.add_argument('--results_dir', default='../models', help='Directory containing model results')
+    parser.add_argument('--output', default='results_summary.csv', help='Output CSV file')
+    parser.add_argument('--min_seeds', default=3, type=int, help='Minimum seeds required for inclusion')
+    parser.add_argument('--json', action='store_true', help='Also output results as JSON')
+    parser.add_argument('--missing-output', default='missing_results.json', help='Output JSON file for missing results')
+
+    args = parser.parse_args()
+
+    print(f"Scanning results directory: {args.results_dir}")
+    all_results, missing_results = extract_results_from_directory(args.results_dir)
+
+    if not all_results:
+        print("No results found!")
+        return
+
+    print(f"\nFound {len(all_results)} individual experiment results")
 
 
-    # Output missing results
-   #if missing_results and missing_results != {}:
-   #    print('******MISSING******')
-   #    for missing in missing_results:
-   #        print()
-   #        for field in missing.items():
-   #            print('    ', field)
+    # Aggregate results
+    aggregated_df_full = aggregate_results(all_results)
+    # Filter by minimum seeds
+    aggregated_df = aggregated_df_full[aggregated_df_full['n_seeds'] >= args.min_seeds]
+    report_stats(aggregated_df, args)
 
-        # Save missing results to JSON
-        with open(args.missing_output, 'w') as f:
-            json.dump({'missing': missing_results, 'count': len(missing_results)}, f, indent=2)
-        print(f"\nSaved missing results to: {args.missing_output}")
+
+    # Save missing results to JSON
+    with open(args.missing_output, 'w') as f:
+        json.dump({'missing': missing_results, 'count': len(missing_results)}, f, indent=2)
+    print(f"\nSaved missing results to: {args.missing_output}")
 
     # Output results as JSON if requested
     if args.json:
@@ -387,6 +383,13 @@ def main():
         with open(json_output, 'w') as f:
             json.dump(results_json, f, indent=2)
         print(f"Saved JSON results to: {json_output}")
+
+
+    print("*" * 80)
+    print("*" * 80)
+    print("Limited Results")
+    aggregated_df = aggregated_df_full[aggregated_df_full['n_seeds'] == 1]
+    report_stats(aggregated_df, args)
 
 if __name__ == "__main__":
     main()

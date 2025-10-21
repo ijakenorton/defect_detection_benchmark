@@ -66,11 +66,18 @@ class ExperimentRunner:
         return env
 
     def _build_python_command(self, model: ModelConfig, dataset: DatasetConfig,
-                             experiment: ExperimentConfig, seed: int, model_config_name: str) -> List[str]:
+                             experiment: ExperimentConfig, seed: int, model_config_name: str, anonymized: bool = False) -> List[str]:
         """Build the Python command to run."""
         # Use model_config_name (e.g., "codet5" or "codet5-full") to avoid collisions
         # when multiple configs share the same HuggingFace model
-        output_dir = self.models_dir / model_config_name / f"{dataset.name}_{experiment.out_suffix}_seed{seed}"
+
+        # Include pos_weight in directory name if it's not the default (1.0)
+        if experiment.pos_weight != 1.0:
+            dir_name = f"{dataset.name}_pos{experiment.pos_weight}_{experiment.out_suffix}_seed{seed}"
+        else:
+            dir_name = f"{dataset.name}_{experiment.out_suffix}_seed{seed}"
+
+        output_dir = self.models_dir / model_config_name / dir_name
 
         cmd = [
             "python", str(self.code_dir / "run.py"),
@@ -86,8 +93,15 @@ class ExperimentRunner:
         else:
             cmd.append("--do_test")
 
+        dataset_suffix = "full_dataset.jsonl" 
+
+        if anonymized:
+            dataset_suffix = "full_dataset_anonymized.jsonl" 
+        
+
         # Add dataset
-        data_file = self.data_dir / dataset.name / f"{dataset.name}_full_dataset.jsonl"
+        data_file = self.data_dir / dataset.name / f"{dataset.name}_{dataset_suffix}"
+
         cmd.append(f"--one_data_file={data_file}")
 
         # Add hyperparameters
@@ -141,9 +155,9 @@ class ExperimentRunner:
         return sbatch_args
 
     def _build_sbatch_wrap_command(self, model: ModelConfig, dataset: DatasetConfig,
-                                   experiment: ExperimentConfig, seed: int, model_config_name: str) -> str:
+                                   experiment: ExperimentConfig, seed: int, model_config_name: str, anonymized: False = False) -> str:
         """Build a complete sbatch --wrap command for direct Python execution."""
-        python_cmd = self._build_python_command(model, dataset, experiment, seed, model_config_name)
+        python_cmd = self._build_python_command(model, dataset, experiment, seed, model_config_name, anonymized)
 
         # Build the full command with conda activation
         conda_activate = "source ~/miniconda3/etc/profile.d/conda.sh"
@@ -159,7 +173,8 @@ class ExperimentRunner:
                       use_sbatch: bool = True,
                       legacy_mode: bool = False,
                       dry_run: bool = False,
-                      fix_missing: bool = False) -> None:
+                      fix_missing: bool = False,
+                      anonymized: bool = False) -> None:
         """Run an experiment.
 
         Args:
@@ -169,6 +184,7 @@ class ExperimentRunner:
                         If False (with use_sbatch), use sbatch --wrap with direct Python calls.
             dry_run: If True, print commands without executing
             fix_missing: If True, only run experiments that are missing from results directory
+            anonymized: If True, run anonymized versions of the datasets. e.g. juliet_full_dataset_anonymized.jsonl
         """
         # Validate
         errors = self.config_loader.validate_experiment(experiment)
@@ -241,6 +257,7 @@ class ExperimentRunner:
             job_count += 1
 
             if use_sbatch:
+
                 if legacy_mode:
                     # Legacy mode: use bash scripts with env vars
                     env = self._setup_env(model, dataset, experiment, seed)
@@ -261,7 +278,7 @@ class ExperimentRunner:
                 else:
                     # Direct mode: use sbatch --wrap with Python command
                     sbatch_cmd = self._build_sbatch_command(dataset, model_name, experiment, seed, legacy_mode=False)
-                    wrap_cmd = self._build_sbatch_wrap_command(model, dataset, experiment, seed, model_name)
+                    wrap_cmd = self._build_sbatch_wrap_command(model, dataset, experiment, seed, model_name, anonymized)
 
                     sbatch_cmd.append("--wrap")
                     sbatch_cmd.append(wrap_cmd)
@@ -276,7 +293,7 @@ class ExperimentRunner:
             else:
                 # Run directly with Python (no sbatch)
                 env = self._setup_env(model, dataset, experiment, seed)
-                python_cmd = self._build_python_command(model, dataset, experiment, seed, model_name)
+                python_cmd = self._build_python_command(model, dataset, experiment, seed, model_name, anonymized)
 
                 if dry_run:
                     print(f"Job {job_count}: {model_name} × {dataset_name} × seed={seed}")
@@ -332,6 +349,8 @@ Examples:
                        help="Print commands without executing")
     parser.add_argument("--fix-missing", action="store_true",
                        help="Only run experiments that are missing from results directory")
+    parser.add_argument("--anonymized", action="store_true",
+                       help="Run anonymized versions of the datasets. e.g. juliet_full_dataset_anonymized.jsonl")
     parser.add_argument("--list-models", action="store_true",
                        help="List available models")
     parser.add_argument("--list-datasets", action="store_true",
@@ -380,7 +399,8 @@ Examples:
         use_sbatch=not args.no_sbatch,
         legacy_mode=args.legacy,
         dry_run=args.dry_run,
-        fix_missing=args.fix_missing
+        fix_missing=args.fix_missing,
+        anonymized=args.anonymized
     )
 
 

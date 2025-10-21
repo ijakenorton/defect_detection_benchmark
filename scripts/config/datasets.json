@@ -49,7 +49,7 @@
       "gpu": "aoraki_gpu"
     },
 
-    "dedup-bigvul": {
+    "dedup-big-vul": {
       "name": "dedup-big-vul",
       "size": "small",
       "time_hours": 20,
